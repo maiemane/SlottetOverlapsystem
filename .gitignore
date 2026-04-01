@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# VS Code
+.vscode/
+
+# Rider / JetBrains
+.idea/
+
+# Logs
+*.log
+
+# Local database files
+*.db
+*.db-shm
+*.db-wal
+
+# App settings for local development
+appsettings.Development.json
+
+# Secrets or local config files
+secrets.json
+
+# Publish output
+publish/
+out/
