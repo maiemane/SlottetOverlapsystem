@@ -1,0 +1,6 @@
+@Slottet.Api_HostAddress = http://localhost:5032
+
+GET {{Slottet.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
