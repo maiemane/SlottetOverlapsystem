@@ -1,22 +1,20 @@
 @page "/oversigt"
 @page "/oversigt/{valg}"
-@attribute [SupplyParameterFromQuery(nameof(valg))]
 
 <PageTitle>Oversigt</PageTitle>
 
-<h3>@(string.IsNullOrEmpty(valg) ? "Vælg en oversigt" : $"Oversigt: {valg}")</h3>
+<h3>@(string.IsNullOrEmpty(valg) ? "VÃ¦lg en oversigt" : $"Oversigt: {valg}")</h3>
 
 @if (string.IsNullOrEmpty(valg))
 {
-    <p>Ingen valg modtaget. Gå til <a href="/menu">Menu</a> for at vælge en vej.</p>
+    <p>Ingen valg modtaget. GÃ¥ til <a href="/menu">Menu</a> for at vÃ¦lge en vej.</p>
 }
 else
 {
     <p>Vis indhold for: <strong>@valg</strong></p>
-    <!-- TODO: Load and show data for the selected overview -->
 }
 
 @code {
     [Parameter]
-    public string valg { get; set; } = string.Empty;
+    public string? valg { get; set; }
 }

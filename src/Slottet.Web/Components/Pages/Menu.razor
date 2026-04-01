@@ -1,22 +1,1 @@
-﻿@page "/menu"
-
-<h3>Vælg din vej</h3>
-
-<div class="menu-container">
-    <div class="menu-box" @onclick="@(() => GåTilOversigt(\"slottet\"))">
-        🏰 Slottet
-    </div>
-    <div class="menu-box" @onclick="@(() => GåTilOversigt(\"skoven\"))">
-        🌲 Skoven
-    </div>
-</div>
-
-@code {
-    [Inject]
-    public NavigationManager NavigationManager { get; set; } = default!;
-
-    private void GåTilOversigt(string valg)
-    {
-        NavigationManager.NavigateTo($"/oversigt/{valg}");
-    }
-}
+﻿@page "/menu"@inject NavigationManager NavigationManager<h3>Vælg din vej</h3><div class="menu-container">    <div class="menu-box" @onclick='() => GaaTilOversigt("slottet")'>        🏰 Slottet    </div>    <div class="menu-box" @onclick='() => GaaTilOversigt("skoven")'>        🌲 Skoven    </div></div>@code {    private void GaaTilOversigt(string valg)    {        NavigationManager.NavigateTo($"/oversigt/{valg}");    }}
