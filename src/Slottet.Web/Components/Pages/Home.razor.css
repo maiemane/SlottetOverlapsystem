@@ -44,6 +44,8 @@
 
 .login-submit {
     min-height: 3.25rem;
+    width: 100%;
+    margin-top: 0.35rem;
     border: 0;
     border-radius: 12px;
     background: linear-gradient(135deg, #c76837 0%, #9c4d26 100%);
@@ -68,7 +70,7 @@
     display: grid;
     gap: 0.15rem;
     padding: 0.9rem 1rem;
-    border-radius: 999px;
+    border-radius: 12px;
     background: #eef5ed;
     border: 1px solid rgba(47, 93, 80, 0.12);
     color: #19352c;

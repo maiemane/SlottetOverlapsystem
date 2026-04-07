@@ -6,27 +6,12 @@
 
 <section class="dashboard-shell">
     <header class="dashboard-header">
-        <span class="dashboard-tag">@AuthService.SelectedDepartment</span>
+        <div class="dashboard-tags">
+            <span class="dashboard-tag">@AuthService.SelectedDepartment</span>
+            <span class="dashboard-tag dashboard-tag-alt">@AuthService.SelectedShift</span>
+        </div>
         <h1>@AuthService.SelectedDepartment overlapsystem</h1>
-        <p>Visning af overlapsplan for den valgte afdeling.</p>
     </header>
-
-    <div class="plan-grid">
-        <section class="plan-card">
-            <h2>Ugeoversigt</h2>
-            <p>Tom placeholder for overlapoversigt i @AuthService.SelectedDepartment.</p>
-        </section>
-
-        <section class="plan-card">
-            <h2>Vagter</h2>
-            <p>Tom placeholder for vagter i @AuthService.SelectedDepartment.</p>
-        </section>
-
-        <section class="plan-card">
-            <h2>Bemærkninger</h2>
-            <p>Tom placeholder for noter og kommentarer i @AuthService.SelectedDepartment.</p>
-        </section>
-    </div>
 </section>
 
 <style>
@@ -39,13 +24,14 @@
         margin-bottom: 1.5rem;
     }
 
-    .dashboard-header h1 {
-        margin: 0.35rem 0;
+    .dashboard-tags {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
     }
 
-    .dashboard-header p {
-        margin: 0;
-        color: #60736a;
+    .dashboard-header h1 {
+        margin: 0.35rem 0;
     }
 
     .dashboard-tag {
@@ -59,31 +45,10 @@
         letter-spacing: 0.08em;
     }
 
-    .plan-grid {
-        display: grid;
-        gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    .dashboard-tag-alt {
+        background: #efe4d6;
     }
 
-    .plan-card {
-        min-height: 180px;
-        padding: 1.25rem;
-        border-radius: 18px;
-        border: 1px solid rgba(47, 93, 80, 0.12);
-        background: rgba(255, 252, 247, 0.92);
-        box-shadow: 0 12px 30px rgba(31, 56, 46, 0.06);
-    }
-
-    .plan-card h2 {
-        margin-top: 0;
-        margin-bottom: 0.5rem;
-        font-size: 1.05rem;
-    }
-
-    .plan-card p {
-        margin: 0;
-        color: #60736a;
-    }
 </style>
 
 @code {

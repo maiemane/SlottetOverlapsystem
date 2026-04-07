@@ -21,6 +21,15 @@
                         }
                     </select>
                 </label>
+                <label class="department-select">
+                    <span>Vagt</span>
+                    <select value="@AuthService.SelectedShift" @onchange="HandleShiftChanged">
+                        @foreach (var shift in AuthService.Shifts)
+                        {
+                            <option value="@shift">@shift</option>
+                        }
+                    </select>
+                </label>
                 <button type="button" class="btn btn-link logout-link" @onclick="Logout">
                     Log ud
                 </button>
@@ -92,6 +101,16 @@
     private void ToggleSidebar()
     {
         IsSidebarOpen = !IsSidebarOpen;
+    }
+
+    private void HandleShiftChanged(ChangeEventArgs e)
+    {
+        var shift = e.Value?.ToString();
+
+        if (!string.IsNullOrWhiteSpace(shift))
+        {
+            AuthService.SetSelectedShift(shift);
+        }
     }
 
     private void Logout()

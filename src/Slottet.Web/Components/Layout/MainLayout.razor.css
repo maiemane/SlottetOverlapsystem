@@ -133,7 +133,15 @@ main {
 }
 
 .logout-link {
-    color: #1f4f40;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.95rem;
+    border: 1px solid rgba(199, 104, 55, 0.18);
+    border-radius: 10px;
+    background: #c76837;
+    color: #fff8f3;
     font-weight: 600;
     text-decoration: none;
 }
@@ -161,7 +169,8 @@ main {
 }
 
 .logout-link:hover {
-    color: #16392f;
+    background: #a9562c;
+    color: #fff8f3;
 }
 
 .content-guest {
