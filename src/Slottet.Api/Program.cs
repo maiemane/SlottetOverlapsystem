@@ -1,8 +1,14 @@
+using Microsoft.EntityFrameworkCore;
 using Slottet.Application.Interfaces;
+using Slottet.Infrastructure.Data;
 using Slottet.Infrastructure.Repositories;
 using Slottet.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("SlottetDb")));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
