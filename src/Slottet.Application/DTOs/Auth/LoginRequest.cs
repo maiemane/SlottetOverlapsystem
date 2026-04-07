@@ -1,4 +1,4 @@
-namespace Slottet.Api.Contracts.Auth;
+namespace Slottet.Application.DTOs.Auth;
 
 public sealed class LoginRequest
 {

@@ -1,6 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Slottet.Api.Auth;
-using Slottet.Api.Contracts.Auth;
+using Slottet.Application.DTOs.Auth;
 using Slottet.Application.Interfaces;
 
 namespace Slottet.Api.Controllers;
@@ -9,44 +9,40 @@ namespace Slottet.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly IEmployeeRepository _employeeRepository;
-    private readonly JwtTokenGenerator _jwtTokenGenerator;
-    private readonly PasswordVerificationService _passwordVerificationService;
+    private readonly ILoginService _loginService;
 
-    public AuthController(
-        IEmployeeRepository employeeRepository,
-        JwtTokenGenerator jwtTokenGenerator,
-        PasswordVerificationService passwordVerificationService)
+    public AuthController(ILoginService loginService)
     {
-        _employeeRepository = employeeRepository;
-        _jwtTokenGenerator = jwtTokenGenerator;
-        _passwordVerificationService = passwordVerificationService;
+        _loginService = loginService;
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<LoginResult>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        var result = await _loginService.LoginAsync(new global::Slottet.Application.DTOs.Auth.LoginRequest
         {
-            return BadRequest("Email og password er påkrævet.");
+            Email = request.Email,
+            Password = request.Password
+        }, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                "MissingCredentials" => BadRequest("Email og password er påkrævet."),
+                "InvalidCredentials" => Unauthorized(),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
         }
 
-        var employee = await _employeeRepository.GetActiveByEmailAsync(request.Email, cancellationToken);
-
-        if (employee is null || !_passwordVerificationService.Verify(employee, request.Password))
+        return Ok(new LoginResult
         {
-            return Unauthorized();
-        }
-
-        var token = _jwtTokenGenerator.CreateToken(employee);
-
-        return Ok(new LoginResponse
-        {
-            AccessToken = token.AccessToken,
-            ExpiresAtUtc = token.ExpiresAtUtc,
-            Name = employee.Name,
-            Email = employee.Email,
-            Role = employee.Role
+            AccessToken = result.AccessToken!,
+            ExpiresAtUtc = result.ExpiresAtUtc!.Value,
+            Name = result.Name!,
+            Email = result.Email!,
+            Role = result.Role!
         });
     }
 }

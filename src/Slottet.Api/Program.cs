@@ -2,8 +2,9 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Slottet.Api.Auth;
 using Slottet.Application.Interfaces;
+using Slottet.Application.Services.Auth;
+using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
 using Slottet.Infrastructure.Repositories;
 using Slottet.Infrastructure.Services;
@@ -49,8 +50,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<JwtTokenGenerator>();
-builder.Services.AddScoped<PasswordVerificationService>();
+builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();
 
 builder.Services.AddScoped<ICitizenRepository, FakeCitizenRepository>();
 builder.Services.AddScoped<IDepartmentRepository, FakeDepartmentRepository>();
@@ -60,6 +62,8 @@ builder.Services.AddScoped<IOverlapOverviewRepository, FakeOverlapOverviewReposi
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
 
 var app = builder.Build();
+
+await app.Services.SeedAuthenticationDataAsync();
 
 if (app.Environment.IsDevelopment())
 {

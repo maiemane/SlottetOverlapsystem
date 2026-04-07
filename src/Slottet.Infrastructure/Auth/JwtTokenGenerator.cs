@@ -3,11 +3,13 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Slottet.Application.DTOs.Auth;
+using Slottet.Application.Interfaces;
 using Slottet.Domain.Entities;
 
-namespace Slottet.Api.Auth;
+namespace Slottet.Infrastructure.Auth;
 
-public sealed class JwtTokenGenerator
+public sealed class JwtTokenGenerator : IJwtTokenGenerator
 {
     private readonly JwtOptions _options;
 
@@ -16,7 +18,7 @@ public sealed class JwtTokenGenerator
         _options = options.Value;
     }
 
-    public AuthTokenResult CreateToken(Employee employee)
+    public JwtTokenResult CreateToken(Employee employee)
     {
         var now = DateTime.UtcNow;
         var expiresAt = now.AddMinutes(_options.ExpirationMinutes);
@@ -35,7 +37,7 @@ public sealed class JwtTokenGenerator
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey)),
             SecurityAlgorithms.HmacSha256);
 
-        var tokenDescriptor = new JwtSecurityToken(
+        var token = new JwtSecurityToken(
             issuer: _options.Issuer,
             audience: _options.Audience,
             claims: claims,
@@ -43,11 +45,9 @@ public sealed class JwtTokenGenerator
             expires: expiresAt,
             signingCredentials: credentials);
 
-        var token = new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
-
-        return new AuthTokenResult
+        return new JwtTokenResult
         {
-            AccessToken = token,
+            AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
             ExpiresAtUtc = expiresAt
         };
     }

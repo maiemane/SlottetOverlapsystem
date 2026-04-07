@@ -1,4 +1,4 @@
-namespace Slottet.Api.Auth;
+namespace Slottet.Infrastructure.Auth;
 
 public sealed class JwtOptions
 {

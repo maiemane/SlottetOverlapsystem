@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Identity;
+using Slottet.Application.Interfaces;
 using Slottet.Domain.Entities;
 
-namespace Slottet.Api.Auth;
+namespace Slottet.Infrastructure.Auth;
 
-public sealed class PasswordVerificationService
+public sealed class PasswordVerificationService : IPasswordVerificationService
 {
     private readonly PasswordHasher<Employee> _passwordHasher = new();
 
