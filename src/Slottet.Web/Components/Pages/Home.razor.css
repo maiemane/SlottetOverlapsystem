@@ -1,0 +1,86 @@
+.login-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1rem;
+}
+
+.login-panel {
+    width: min(420px, 100%);
+    display: grid;
+    gap: 1rem;
+    padding: 2rem;
+    border-radius: 20px;
+    border: 1px solid rgba(47, 93, 80, 0.14);
+    background: rgba(255, 252, 247, 0.94);
+    box-shadow: 0 20px 50px rgba(31, 56, 46, 0.12);
+}
+
+.login-panel h1 {
+    margin: 0;
+    text-align: center;
+    font-size: 1.75rem;
+    color: #19352c;
+}
+
+.login-form {
+    display: grid;
+    gap: 1rem;
+}
+
+.login-field label {
+    display: block;
+    margin-bottom: 0.45rem;
+    font-weight: 600;
+    color: #19352c;
+}
+
+.login-field ::deep .form-control {
+    min-height: 3.25rem;
+    border-radius: 12px;
+    border: 1px solid rgba(47, 93, 80, 0.14);
+    background-color: rgba(255, 255, 255, 0.84);
+}
+
+.login-submit {
+    min-height: 3.25rem;
+    width: 100%;
+    margin-top: 0.35rem;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #c76837 0%, #9c4d26 100%);
+    color: #fff8f3;
+    font-weight: 700;
+}
+
+.login-error {
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: rgba(199, 104, 55, 0.1);
+    color: #8a3b18;
+}
+
+.test-logins {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.test-login-card {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: #eef5ed;
+    border: 1px solid rgba(47, 93, 80, 0.12);
+    color: #19352c;
+}
+
+.test-login-card strong {
+    font-size: 0.95rem;
+}
+
+.test-login-card span {
+    font-size: 0.9rem;
+    color: #53675e;
+}

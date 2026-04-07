@@ -1,0 +1,24 @@
+@page "/admin/historik"
+@inject NavigationManager NavigationManager
+@inject SampleAuthService AuthService
+
+<PageTitle>Søg i historik</PageTitle>
+
+@if (IsAdmin)
+{
+    <section class="p-4">
+        <h1>Søg i historik</h1>
+    </section>
+}
+
+@code {
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+
+    protected override void OnInitialized()
+    {
+        if (!IsAdmin)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+        }
+    }
+}

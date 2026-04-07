@@ -1,0 +1,69 @@
+@page "/app"
+@implements IDisposable
+@inject SampleAuthService AuthService
+
+<PageTitle>Slottet</PageTitle>
+
+<section class="dashboard-shell">
+    <header class="dashboard-header">
+        <div class="dashboard-tags">
+            <span class="dashboard-tag">@AuthService.SelectedDepartment</span>
+            <span class="dashboard-tag dashboard-tag-alt">@AuthService.SelectedShift</span>
+        </div>
+        <h1>@AuthService.SelectedDepartment overlapsystem</h1>
+    </header>
+</section>
+
+<style>
+    .dashboard-shell {
+        padding: 2rem 0 3rem;
+        color: #19352c;
+    }
+
+    .dashboard-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .dashboard-tags {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .dashboard-header h1 {
+        margin: 0.35rem 0;
+    }
+
+    .dashboard-tag {
+        display: inline-flex;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: #dceadf;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .dashboard-tag-alt {
+        background: #efe4d6;
+    }
+
+</style>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+    }
+
+    private void HandleAuthenticationStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+}
