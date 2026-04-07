@@ -54,6 +54,7 @@ builder.Services.AddScoped<PasswordVerificationService>();
 
 builder.Services.AddScoped<ICitizenRepository, FakeCitizenRepository>();
 builder.Services.AddScoped<IDepartmentRepository, FakeDepartmentRepository>();
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<IOverlapSelectionService, OverlapSelectionService>();
 builder.Services.AddScoped<IOverlapOverviewRepository, FakeOverlapOverviewRepository>();
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();

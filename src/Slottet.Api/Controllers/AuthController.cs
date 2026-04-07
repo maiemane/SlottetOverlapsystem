@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Slottet.Api.Auth;
 using Slottet.Api.Contracts.Auth;
-using Slottet.Infrastructure.Data;
+using Slottet.Application.Interfaces;
 
 namespace Slottet.Api.Controllers;
 
@@ -10,16 +9,16 @@ namespace Slottet.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly ApplicationDbContext _dbContext;
+    private readonly IEmployeeRepository _employeeRepository;
     private readonly JwtTokenGenerator _jwtTokenGenerator;
     private readonly PasswordVerificationService _passwordVerificationService;
 
     public AuthController(
-        ApplicationDbContext dbContext,
+        IEmployeeRepository employeeRepository,
         JwtTokenGenerator jwtTokenGenerator,
         PasswordVerificationService passwordVerificationService)
     {
-        _dbContext = dbContext;
+        _employeeRepository = employeeRepository;
         _jwtTokenGenerator = jwtTokenGenerator;
         _passwordVerificationService = passwordVerificationService;
     }
@@ -32,9 +31,7 @@ public class AuthController : ControllerBase
             return BadRequest("Email og password er påkrævet.");
         }
 
-        var employee = await _dbContext.Employees
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Email == request.Email.Trim() && x.IsActive, cancellationToken);
+        var employee = await _employeeRepository.GetActiveByEmailAsync(request.Email, cancellationToken);
 
         if (employee is null || !_passwordVerificationService.Verify(employee, request.Password))
         {
