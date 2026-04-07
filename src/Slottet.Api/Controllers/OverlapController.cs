@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Slottet.Application.DTOs;
 using Slottet.Application.Interfaces;
@@ -6,6 +7,7 @@ using Slottet.Domain.Enums;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/overlap")]
 public class OverlapController : ControllerBase
 {

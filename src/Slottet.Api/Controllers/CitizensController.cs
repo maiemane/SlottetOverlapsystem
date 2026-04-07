@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Slottet.Application.Interfaces;
 using Slottet.Domain.Entities;
@@ -5,6 +6,7 @@ using Slottet.Domain.Entities;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class CitizensController : ControllerBase
 {

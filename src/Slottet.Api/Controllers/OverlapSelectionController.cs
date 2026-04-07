@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Slottet.Application.DTOs;
 using Slottet.Application.Interfaces;
@@ -5,6 +6,7 @@ using Slottet.Application.Interfaces;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/overlap-selection")]
 public class OverlapSelectionController : ControllerBase
 {

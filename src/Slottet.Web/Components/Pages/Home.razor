@@ -1,6 +1,6 @@
 ﻿@page "/"
 @inject NavigationManager NavigationManager
-@inject SampleAuthService AuthService
+@inject AuthService AuthService
 
 <PageTitle>Login</PageTitle>
 
@@ -32,14 +32,17 @@
         </EditForm>
 
         <div class="test-logins">
-            @foreach (var sampleUser in AuthService.SampleUsers)
-            {
-                <div class="test-login-card">
-                    <strong>@sampleUser.Role</strong>
-                    <span>@sampleUser.Email</span>
-                    <span>@sampleUser.Password</span>
-                </div>
-            }
+            <div class="test-login-card">
+                <strong>Medarbejder</strong>
+                <span>medarbejder@slottet.dk</span>
+                <span>med123</span>
+            </div>
+
+            <div class="test-login-card">
+                <strong>Admin</strong>
+                <span>admin@slottet.dk</span>
+                <span>admin123</span>
+            </div>
         </div>
     </section>
 </div>
@@ -58,15 +61,17 @@
         }
     }
 
-    private void HandleLogin()
+    private async Task HandleLogin()
     {
-        if (AuthService.TryLogin(LoginModel.Email, LoginModel.Password, out var errorMessage))
+        var result = await AuthService.LoginAsync(LoginModel.Email, LoginModel.Password);
+
+        if (result.IsSuccess)
         {
             ErrorMessage = null;
             NavigationManager.NavigateTo("/app", replace: true);
             return;
         }
 
-        ErrorMessage = errorMessage;
+        ErrorMessage = result.ErrorMessage;
     }
 }
