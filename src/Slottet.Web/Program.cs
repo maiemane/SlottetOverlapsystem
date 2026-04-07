@@ -6,7 +6,15 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddScoped<SampleAuthService>();
+builder.Services.Configure<AuthApiOptions>(builder.Configuration.GetSection(AuthApiOptions.SectionName));
+var apiOptions = builder.Configuration.GetSection(AuthApiOptions.SectionName).Get<AuthApiOptions>()
+                ?? throw new InvalidOperationException("Api configuration is missing.");
+
+builder.Services.AddHttpClient("SlottetApi", client =>
+{
+    client.BaseAddress = new Uri(apiOptions.BaseUrl);
+});
+builder.Services.AddScoped<AuthService>();
 
 var app = builder.Build();
 

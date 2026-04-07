@@ -1,7 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager NavigationManager
-@inject SampleAuthService AuthService
+@inject AuthService AuthService
 
 <div class="page @(AuthService.IsAuthenticated ? "page-authenticated" : "page-guest")">
     @if (AuthService.IsAuthenticated)
