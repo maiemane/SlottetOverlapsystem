@@ -1,7 +1,72 @@
 ﻿@page "/"
+@inject NavigationManager NavigationManager
+@inject SampleAuthService AuthService
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Login</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="login-shell">
+    <section class="login-panel">
+        <h1>Slottet/Skoven overlapsystem</h1>
 
-Welcome to your new app.
+        <EditForm FormName="login-form" class="login-form" Model="@LoginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                <div class="login-error">@ErrorMessage</div>
+            }
+
+            <div class="login-field">
+                <label for="email">Email</label>
+                <InputText id="email" class="form-control" @bind-Value="LoginModel.Email" />
+                <ValidationMessage For="() => LoginModel.Email" />
+            </div>
+
+            <div class="login-field">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="LoginModel.Password" />
+                <ValidationMessage For="() => LoginModel.Password" />
+            </div>
+
+            <button type="submit" class="login-submit">Log ind</button>
+        </EditForm>
+
+        <div class="test-logins">
+            @foreach (var sampleUser in AuthService.SampleUsers)
+            {
+                <div class="test-login-card">
+                    <strong>@sampleUser.Role</strong>
+                    <span>@sampleUser.Email</span>
+                    <span>@sampleUser.Password</span>
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    [SupplyParameterFromForm(FormName = "login-form")]
+    private LoginFormModel LoginModel { get; set; } = new();
+
+    private string? ErrorMessage { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+        }
+    }
+
+    private void HandleLogin()
+    {
+        if (AuthService.TryLogin(LoginModel.Email, LoginModel.Password, out var errorMessage))
+        {
+            ErrorMessage = null;
+            NavigationManager.NavigateTo("/app", replace: true);
+            return;
+        }
+
+        ErrorMessage = errorMessage;
+    }
+}

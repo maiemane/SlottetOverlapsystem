@@ -1,6 +1,42 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+﻿@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject SampleAuthService AuthService
+
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Trim('/');
+
+        if (!AuthService.IsAuthenticated && !IsPublicRoute(relativePath))
+        {
+            NavigationManager.NavigateTo("/", replace: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+    }
+
+    private static bool IsPublicRoute(string relativePath)
+    {
+        return string.IsNullOrWhiteSpace(relativePath);
+    }
+
+    private void HandleAuthenticationStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+}

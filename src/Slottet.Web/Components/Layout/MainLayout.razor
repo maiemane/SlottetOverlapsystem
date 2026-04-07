@@ -1,16 +1,35 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject SampleAuthService AuthService
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
+<div class="page @(AuthService.IsAuthenticated ? "page-authenticated" : "page-guest")">
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+        @if (AuthService.IsAuthenticated)
+        {
+            <div class="top-row px-4">
+                <div class="session-meta">
+                    <span class="session-role">@AuthService.CurrentUser?.Role</span>
+                    <strong>@AuthService.CurrentUser?.FullName</strong>
+                </div>
+                <div class="top-actions">
+                    <label class="department-select">
+                        <span>Afdeling</span>
+                        <select value="@AuthService.SelectedDepartment" @onchange="HandleDepartmentChanged">
+                            @foreach (var department in AuthService.Departments)
+                            {
+                                <option value="@department">@department</option>
+                            }
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-link logout-link" @onclick="Logout">
+                        Log ud
+                    </button>
+                </div>
+            </div>
+        }
 
-        <article class="content px-4">
+        <article class="content @(AuthService.IsAuthenticated ? "content-authenticated px-4" : "content-guest")">
             @Body
         </article>
     </main>
@@ -21,3 +40,36 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+    }
+
+    private void HandleAuthenticationStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleDepartmentChanged(ChangeEventArgs e)
+    {
+        var department = e.Value?.ToString();
+
+        if (!string.IsNullOrWhiteSpace(department))
+        {
+            AuthService.SetSelectedDepartment(department);
+        }
+    }
+
+    private void Logout()
+    {
+        AuthService.Logout();
+        NavigationManager.NavigateTo("/", replace: true);
+    }
+}
