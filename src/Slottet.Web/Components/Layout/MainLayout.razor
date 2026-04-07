@@ -4,35 +4,53 @@
 @inject SampleAuthService AuthService
 
 <div class="page @(AuthService.IsAuthenticated ? "page-authenticated" : "page-guest")">
-    <main>
-        @if (AuthService.IsAuthenticated)
-        {
-            <div class="top-row px-4">
-                <div class="session-meta">
-                    <span class="session-role">@AuthService.CurrentUser?.Role</span>
-                    <strong>@AuthService.CurrentUser?.FullName</strong>
-                </div>
-                <div class="top-actions">
-                    <label class="department-select">
-                        <span>Afdeling</span>
-                        <select value="@AuthService.SelectedDepartment" @onchange="HandleDepartmentChanged">
-                            @foreach (var department in AuthService.Departments)
-                            {
-                                <option value="@department">@department</option>
-                            }
-                        </select>
-                    </label>
-                    <button type="button" class="btn btn-link logout-link" @onclick="Logout">
-                        Log ud
-                    </button>
-                </div>
+    @if (AuthService.IsAuthenticated)
+    {
+        <div class="top-row px-4">
+            <div class="session-meta">
+                <span class="session-role">@AuthService.CurrentUser?.Role</span>
+                <strong>@AuthService.CurrentUser?.FullName</strong>
             </div>
+            <div class="top-actions">
+                <label class="department-select">
+                    <span>Afdeling</span>
+                    <select value="@AuthService.SelectedDepartment" @onchange="HandleDepartmentChanged">
+                        @foreach (var department in AuthService.Departments)
+                        {
+                            <option value="@department">@department</option>
+                        }
+                    </select>
+                </label>
+                <button type="button" class="btn btn-link logout-link" @onclick="Logout">
+                    Log ud
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="page-body">
+        @if (IsAdmin)
+        {
+            <aside class="admin-sidebar @(IsSidebarOpen ? "open" : "closed")">
+                <button type="button" class="sidebar-edge-toggle" @onclick="ToggleSidebar" aria-label="Skift sidebar">
+                    <span>@(IsSidebarOpen ? "‹" : "›")</span>
+                </button>
+
+                <nav class="admin-nav @(IsSidebarOpen ? string.Empty : "admin-nav-hidden")">
+                    <NavLink class="admin-nav-link" href="/app" Match="NavLinkMatch.All">Overlapssystem</NavLink>
+                    <NavLink class="admin-nav-link" href="/admin/opret-borger">Opret Borger</NavLink>
+                    <NavLink class="admin-nav-link" href="/admin/opret-medarbejder">Opret Medarbejder</NavLink>
+                    <NavLink class="admin-nav-link" href="/admin/historik">Søg i historik</NavLink>
+                </nav>
+            </aside>
         }
 
-        <article class="content @(AuthService.IsAuthenticated ? "content-authenticated px-4" : "content-guest")">
-            @Body
-        </article>
-    </main>
+        <main>
+            <article class="content @(AuthService.IsAuthenticated ? "content-authenticated px-4" : "content-guest")">
+                @Body
+            </article>
+        </main>
+    </div>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -42,6 +60,10 @@
 </div>
 
 @code {
+    private bool IsSidebarOpen { get; set; } = true;
+
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+
     protected override void OnInitialized()
     {
         AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
@@ -65,6 +87,11 @@
         {
             AuthService.SetSelectedDepartment(department);
         }
+    }
+
+    private void ToggleSidebar()
+    {
+        IsSidebarOpen = !IsSidebarOpen;
     }
 
     private void Logout()

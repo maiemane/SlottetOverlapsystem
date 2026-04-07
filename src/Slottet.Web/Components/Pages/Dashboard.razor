@@ -8,23 +8,8 @@
     <header class="dashboard-header">
         <span class="dashboard-tag">@AuthService.SelectedDepartment</span>
         <h1>@AuthService.SelectedDepartment overlapsystem</h1>
-        @if (AuthService.CurrentUser?.Role == "Admin")
-        {
-            <p>Admin-visning af overlapsplan for den valgte afdeling.</p>
-        }
-        else
-        {
-            <p>Medarbejder-visning af overlapsplan for den valgte afdeling.</p>
-        }
+        <p>Visning af overlapsplan for den valgte afdeling.</p>
     </header>
-
-    @if (AuthService.CurrentUser?.Role == "Admin")
-    {
-        <section class="admin-banner">
-            <strong>Admin</strong>
-            <span>Du ser samme planstruktur som medarbejdere, men her kan adminfunktioner senere tilføjes.</span>
-        </section>
-    }
 
     <div class="plan-grid">
         <section class="plan-card">
@@ -72,17 +57,6 @@
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-    }
-
-    .admin-banner {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        margin-bottom: 1.25rem;
-        padding: 1rem 1.1rem;
-        border-radius: 16px;
-        background: #fff4e8;
-        color: #8a3b18;
     }
 
     .plan-grid {
