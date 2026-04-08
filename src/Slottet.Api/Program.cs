@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Slottet.Application.Interfaces;
 using Slottet.Application.Services.Auth;
+using Slottet.Application.Services.Employees;
 using Slottet.Application.Services.Overlap;
 using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
@@ -77,8 +78,10 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();
 
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();

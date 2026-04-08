@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 
 namespace Slottet.Auth;
 
@@ -102,6 +103,18 @@ public sealed class AuthService
         {
             return (false, "Der opstod en uventet fejl under login.");
         }
+    }
+
+    public HttpClient CreateApiClient()
+    {
+        var client = _httpClientFactory.CreateClient("SlottetApi");
+
+        if (!string.IsNullOrWhiteSpace(AccessToken))
+        {
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AccessToken);
+        }
+
+        return client;
     }
 
     public void SetSelectedDepartment(string department)
