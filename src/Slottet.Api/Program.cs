@@ -1,12 +1,15 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Slottet.Api.Auth;
+using Microsoft.OpenApi;
 using Slottet.Application.Interfaces;
+using Slottet.Application.Services.Auth;
+using Slottet.Application.Services.Overlap;
+using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
 using Slottet.Infrastructure.Repositories;
-using Slottet.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,21 +48,45 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<JwtTokenGenerator>();
-builder.Services.AddScoped<PasswordVerificationService>();
+builder.Services.AddSwaggerGen(options =>
+{
+    const string bearerSchemeName = "bearerAuth";
 
-builder.Services.AddScoped<ICitizenRepository, FakeCitizenRepository>();
-builder.Services.AddScoped<IDepartmentRepository, FakeDepartmentRepository>();
-builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
-builder.Services.AddScoped<IOverlapSelectionService, OverlapSelectionService>();
-builder.Services.AddScoped<IOverlapOverviewRepository, FakeOverlapOverviewRepository>();
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Slottet API",
+        Version = "v1"
+    });
+
+    options.AddSecurityDefinition(bearerSchemeName, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Indsæt kun selve JWT tokenet her. Swagger tilføjer selv Bearer-prefix."
+    });
+    options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference(bearerSchemeName, null, null)] = new List<string>()
+    });
+});
+builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
+builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();
+
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+builder.Services.AddScoped<IOverlapOverviewRepository, OverlapOverviewRepository>();
 
 var app = builder.Build();
+
+await app.Services.SeedAuthenticationDataAsync();
 
 if (app.Environment.IsDevelopment())
 {

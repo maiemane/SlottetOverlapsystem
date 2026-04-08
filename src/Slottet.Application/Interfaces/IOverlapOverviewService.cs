@@ -1,9 +1,8 @@
-using Slottet.Application.DTOs;
-using Slottet.Domain.Enums;
+using Slottet.Application.DTOs.Overlap;
 
 namespace Slottet.Application.Interfaces;
 
 public interface IOverlapOverviewService
 {
-    Task<OverlapOverviewDto?> GetOverviewAsync(int departmentId, ShiftType shiftType);
+    Task<CitizenOverlapOverviewDto?> GetCitizenOverviewAsync(int departmentId, int shiftId, CancellationToken cancellationToken = default);
 }

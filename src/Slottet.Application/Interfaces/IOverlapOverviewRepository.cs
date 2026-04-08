@@ -1,9 +1,13 @@
-using Slottet.Application.DTOs;
-using Slottet.Domain.Enums;
+using Slottet.Domain.Entities;
 
 namespace Slottet.Application.Interfaces;
 
 public interface IOverlapOverviewRepository
 {
-    Task<OverlapOverviewDto?> GetByDepartmentAndShiftAsync(int departmentId, ShiftType shiftType);
+    Task<Department?> GetDepartmentByIdAsync(int departmentId, CancellationToken cancellationToken = default);
+    Task<Shift?> GetShiftByIdAsync(int shiftId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Citizen>> GetActiveCitizensByDepartmentAsync(int departmentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicinRegistration>> GetMedicationsByShiftAsync(int shiftId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SpecialEvent>> GetSpecialEventsByShiftAsync(int shiftId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CitizenAssignment>> GetCitizenAssignmentsByShiftAsync(int shiftId, CancellationToken cancellationToken = default);
 }

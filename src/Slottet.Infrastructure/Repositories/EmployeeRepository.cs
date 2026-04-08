@@ -16,10 +16,10 @@ public class EmployeeRepository : IEmployeeRepository
 
     public async Task<Employee?> GetActiveByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = email.Trim();
+        var normalizedEmail = email.Trim().ToUpper();
 
         return await _dbContext.Employees
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Email == normalizedEmail && x.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Email.ToUpper() == normalizedEmail && x.IsActive, cancellationToken);
     }
 }

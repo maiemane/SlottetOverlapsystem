@@ -1,15 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Slottet.Application.DTOs;
+using Slottet.Application.DTOs.Overlap;
 using Slottet.Application.Interfaces;
-using Slottet.Domain.Enums;
 
 namespace Slottet.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/overlap")]
-public class OverlapController : ControllerBase
+public sealed class OverlapController : ControllerBase
 {
     private readonly IOverlapOverviewService _overlapOverviewService;
 
@@ -17,15 +16,18 @@ public class OverlapController : ControllerBase
     {
         _overlapOverviewService = overlapOverviewService;
     }
-
-    [HttpGet("departments/{departmentId:int}/shifts/{shiftType}")]
-    public async Task<ActionResult<OverlapOverviewDto>> GetOverview(int departmentId, ShiftType shiftType)
+    
+    [HttpGet("departments/{departmentId:int}/shifts/{shiftId:int}/citizens")]
+    public async Task<ActionResult<CitizenOverlapOverviewDto>> GetCitizenOverview(
+        int departmentId,
+        int shiftId,
+        CancellationToken cancellationToken)
     {
-        var overview = await _overlapOverviewService.GetOverviewAsync(departmentId, shiftType);
+        var overview = await _overlapOverviewService.GetCitizenOverviewAsync(departmentId, shiftId, cancellationToken);
 
         if (overview is null)
         {
-            return BadRequest("Ugyldig afdeling eller vagt.");
+            return NotFound("Afdeling eller vagt blev ikke fundet, eller vagten tilhoerer ikke afdelingen.");
         }
 
         return Ok(overview);

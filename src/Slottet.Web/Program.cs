@@ -10,11 +10,13 @@ builder.Services.Configure<AuthApiOptions>(builder.Configuration.GetSection(Auth
 var apiOptions = builder.Configuration.GetSection(AuthApiOptions.SectionName).Get<AuthApiOptions>()
                 ?? throw new InvalidOperationException("Api configuration is missing.");
 
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<IAuthSessionStore, BrowserSessionAuthStore>();
+builder.Services.AddScoped<BearerTokenHandler>();
 builder.Services.AddHttpClient("SlottetApi", client =>
 {
     client.BaseAddress = new Uri(apiOptions.BaseUrl);
-});
-builder.Services.AddScoped<AuthService>();
+}).AddHttpMessageHandler<BearerTokenHandler>();
 
 var app = builder.Build();
 

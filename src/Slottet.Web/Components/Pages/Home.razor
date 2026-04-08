@@ -52,13 +52,17 @@
     private LoginFormModel LoginModel { get; set; } = new();
 
     private string? ErrorMessage { get; set; }
+    private bool _hasNavigatedToApp;
 
-    protected override void OnInitialized()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (AuthService.IsAuthenticated)
+        if (!firstRender)
         {
-            NavigationManager.NavigateTo("/app", replace: true);
+            return;
         }
+
+        await AuthService.InitializeAsync();
+        NavigateToAppIfAuthenticated();
     }
 
     private async Task HandleLogin()
@@ -73,5 +77,16 @@
         }
 
         ErrorMessage = result.ErrorMessage;
+    }
+
+    private void NavigateToAppIfAuthenticated()
+    {
+        if (_hasNavigatedToApp || !AuthService.IsAuthenticated)
+        {
+            return;
+        }
+
+        _hasNavigatedToApp = true;
+        NavigationManager.NavigateTo("/app", replace: true);
     }
 }

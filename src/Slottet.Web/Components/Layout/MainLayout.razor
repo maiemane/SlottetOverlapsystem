@@ -113,9 +113,9 @@
         }
     }
 
-    private void Logout()
+    private async Task Logout()
     {
-        AuthService.Logout();
+        await AuthService.LogoutAsync();
         NavigationManager.NavigateTo("/", replace: true);
     }
 }
