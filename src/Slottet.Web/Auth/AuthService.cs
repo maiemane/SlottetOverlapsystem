@@ -6,12 +6,16 @@ namespace Slottet.Auth;
 public sealed class AuthService
 {
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IAuthSessionStore _authSessionStore;
     private readonly IReadOnlyList<string> _departments = ["Slottet", "Skoven"];
     private readonly IReadOnlyList<string> _shifts = ["Dag", "Aften", "Nat"];
+    private bool _isInitialized;
+    private Task? _initializationTask;
 
-    public AuthService(IHttpClientFactory httpClientFactory)
+    public AuthService(IHttpClientFactory httpClientFactory, IAuthSessionStore authSessionStore)
     {
         _httpClientFactory = httpClientFactory;
+        _authSessionStore = authSessionStore;
     }
 
     public AuthenticatedUser? CurrentUser { get; private set; }
@@ -19,10 +23,22 @@ public sealed class AuthService
     public string SelectedDepartment { get; private set; } = "Slottet";
     public string SelectedShift { get; private set; } = "Dag";
     public bool IsAuthenticated => CurrentUser is not null && !string.IsNullOrWhiteSpace(AccessToken);
+    public bool IsInitialized => _isInitialized;
     public event Action? AuthenticationStateChanged;
 
     public IReadOnlyList<string> Departments => _departments;
     public IReadOnlyList<string> Shifts => _shifts;
+
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        if (_isInitialized)
+        {
+            return Task.CompletedTask;
+        }
+
+        _initializationTask ??= InitializeCoreAsync(cancellationToken);
+        return _initializationTask;
+    }
 
     public async Task<(bool IsSuccess, string? ErrorMessage)> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
     {
@@ -70,6 +86,7 @@ public sealed class AuthService
             SelectedDepartment = GetDefaultDepartment(loginResponse.Role);
             SelectedShift = GetDefaultShift(loginResponse.Role);
 
+            await PersistStateAsync(cancellationToken);
             AuthenticationStateChanged?.Invoke();
             return (true, null);
         }
@@ -102,6 +119,7 @@ public sealed class AuthService
         }
 
         SelectedDepartment = resolvedDepartment;
+        _ = PersistStateSafeAsync();
         AuthenticationStateChanged?.Invoke();
     }
 
@@ -120,17 +138,17 @@ public sealed class AuthService
         }
 
         SelectedShift = resolvedShift;
+        _ = PersistStateSafeAsync();
         AuthenticationStateChanged?.Invoke();
     }
 
-    public void Logout()
+    public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
-        CurrentUser = null;
-        AccessToken = null;
-        SelectedDepartment = "Slottet";
-        SelectedShift = "Dag";
+        ClearState();
+        await _authSessionStore.ClearAsync(cancellationToken);
         AuthenticationStateChanged?.Invoke();
     }
+
     private static string GetDefaultDepartment(string role)
     {
         return role == "Medarbejder" ? "Slottet" : "Slottet";
@@ -139,5 +157,78 @@ public sealed class AuthService
     private static string GetDefaultShift(string role)
     {
         return role == "Medarbejder" ? "Dag" : "Dag";
+    }
+
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
+    {
+        var persistedState = await _authSessionStore.LoadAsync(cancellationToken);
+
+        if (persistedState is not null)
+        {
+            var isExpired = persistedState.User.ExpiresAtUtc <= DateTime.UtcNow;
+
+            if (isExpired)
+            {
+                await _authSessionStore.ClearAsync(cancellationToken);
+            }
+            else
+            {
+                CurrentUser = persistedState.User;
+                AccessToken = persistedState.AccessToken;
+                SelectedDepartment = ResolveDepartment(persistedState.SelectedDepartment);
+                SelectedShift = ResolveShift(persistedState.SelectedShift);
+            }
+        }
+
+        _isInitialized = true;
+        AuthenticationStateChanged?.Invoke();
+    }
+
+    private Task PersistStateAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsAuthenticated || CurrentUser is null || string.IsNullOrWhiteSpace(AccessToken))
+        {
+            return _authSessionStore.ClearAsync(cancellationToken);
+        }
+
+        return _authSessionStore.SaveAsync(new PersistedAuthState
+        {
+            User = CurrentUser,
+            AccessToken = AccessToken,
+            SelectedDepartment = SelectedDepartment,
+            SelectedShift = SelectedShift
+        }, cancellationToken);
+    }
+
+    private async Task PersistStateSafeAsync()
+    {
+        try
+        {
+            await PersistStateAsync();
+        }
+        catch
+        {
+            // Ignore storage write failures and keep the in-memory auth state alive.
+        }
+    }
+
+    private void ClearState()
+    {
+        CurrentUser = null;
+        AccessToken = null;
+        SelectedDepartment = "Slottet";
+        SelectedShift = "Dag";
+    }
+
+    private string ResolveDepartment(string department)
+    {
+        return _departments.FirstOrDefault(x => string.Equals(x, department, StringComparison.OrdinalIgnoreCase))
+            ?? "Slottet";
+    }
+
+    private string ResolveShift(string shift)
+    {
+        return _shifts.FirstOrDefault(x => string.Equals(x, shift, StringComparison.OrdinalIgnoreCase))
+            ?? "Dag";
     }
 }

@@ -9,7 +9,6 @@ using Slottet.Application.Services.Auth;
 using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
 using Slottet.Infrastructure.Repositories;
-using Slottet.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -80,12 +79,7 @@ builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();
 
-builder.Services.AddScoped<ICitizenRepository, FakeCitizenRepository>();
-builder.Services.AddScoped<IDepartmentRepository, FakeDepartmentRepository>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
-builder.Services.AddScoped<IOverlapSelectionService, OverlapSelectionService>();
-builder.Services.AddScoped<IOverlapOverviewRepository, FakeOverlapOverviewRepository>();
-builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
 
 var app = builder.Build();
 

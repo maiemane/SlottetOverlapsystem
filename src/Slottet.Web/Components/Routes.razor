@@ -2,12 +2,15 @@
 @inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
-<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+@if (AuthService.IsInitialized)
+{
+    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+}
 
 @code {
     protected override void OnInitialized()
@@ -15,14 +18,20 @@
         AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await AuthService.InitializeAsync();
+        EnsureAuthorizedRoute();
+    }
+
     protected override void OnParametersSet()
     {
-        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Trim('/');
-
-        if (!AuthService.IsAuthenticated && !IsPublicRoute(relativePath))
-        {
-            NavigationManager.NavigateTo("/", replace: true);
-        }
+        EnsureAuthorizedRoute();
     }
 
     public void Dispose()
@@ -33,6 +42,21 @@
     private static bool IsPublicRoute(string relativePath)
     {
         return string.IsNullOrWhiteSpace(relativePath);
+    }
+
+    private void EnsureAuthorizedRoute()
+    {
+        if (!AuthService.IsInitialized)
+        {
+            return;
+        }
+
+        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Trim('/');
+
+        if (!AuthService.IsAuthenticated && !IsPublicRoute(relativePath))
+        {
+            NavigationManager.NavigateTo("/", replace: true);
+        }
     }
 
     private void HandleAuthenticationStateChanged()

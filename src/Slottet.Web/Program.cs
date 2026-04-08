@@ -11,6 +11,7 @@ var apiOptions = builder.Configuration.GetSection(AuthApiOptions.SectionName).Ge
                 ?? throw new InvalidOperationException("Api configuration is missing.");
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<IAuthSessionStore, BrowserSessionAuthStore>();
 builder.Services.AddScoped<BearerTokenHandler>();
 builder.Services.AddHttpClient("SlottetApi", client =>
 {
