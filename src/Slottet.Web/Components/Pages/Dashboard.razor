@@ -12,6 +12,18 @@
         </div>
         <h1>@AuthService.SelectedDepartment overlapsystem</h1>
     </header>
+
+    @if (IsAdmin && !string.IsNullOrWhiteSpace(AuthService.AccessToken))
+    {
+        <section class="token-panel">
+            <h2>Admin API-token</h2>
+            <p>I Swagger, Postman og curl kan du bruge Bearer-vaerdien nedenunder. Den ra token er kun med som reference.</p>
+            <label class="token-label" for="bearer-token">Bearer-vaerdi til Swagger, Postman og curl</label>
+            <textarea id="bearer-token" class="token-value" readonly>@BearerToken</textarea>
+            <label class="token-label" for="raw-token">Ra JWT token</label>
+            <textarea id="raw-token" class="token-value" readonly>@RawToken</textarea>
+        </section>
+    }
 </section>
 
 <style>
@@ -49,9 +61,52 @@
         background: #efe4d6;
     }
 
+    .token-panel {
+        margin-top: 2rem;
+        padding: 1.25rem;
+        border: 1px solid #c9d8cf;
+        border-radius: 1rem;
+        background: #f8fbf9;
+        max-width: 900px;
+    }
+
+    .token-panel h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.1rem;
+    }
+
+    .token-panel p {
+        margin: 0 0 0.75rem;
+        color: #496157;
+    }
+
+    .token-value {
+        width: 100%;
+        min-height: 8rem;
+        padding: 0.85rem;
+        border: 1px solid #b8cbbf;
+        border-radius: 0.75rem;
+        background: #fff;
+        color: #19352c;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 0.9rem;
+        resize: vertical;
+    }
+
+    .token-label {
+        display: block;
+        margin: 0.85rem 0 0.35rem;
+        font-weight: 700;
+        color: #19352c;
+    }
+
 </style>
 
 @code {
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private string RawToken => AuthService.AccessToken ?? string.Empty;
+    private string BearerToken => $"Bearer {AuthService.AccessToken}";
+
     protected override void OnInitialized()
     {
         AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;

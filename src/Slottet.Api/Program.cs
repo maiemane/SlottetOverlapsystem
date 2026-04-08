@@ -1,7 +1,9 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Slottet.Application.Interfaces;
 using Slottet.Application.Services.Auth;
 using Slottet.Infrastructure.Auth;
@@ -46,10 +48,34 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build());
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    const string bearerSchemeName = "bearerAuth";
+
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Slottet API",
+        Version = "v1"
+    });
+
+    options.AddSecurityDefinition(bearerSchemeName, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Indsæt kun selve JWT tokenet her. Swagger tilføjer selv Bearer-prefix."
+    });
+    options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference(bearerSchemeName, null, null)] = new List<string>()
+    });
+});
 builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();

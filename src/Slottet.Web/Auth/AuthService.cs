@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net;
 using System.Net.Http.Json;
 
@@ -132,19 +131,6 @@ public sealed class AuthService
         SelectedShift = "Dag";
         AuthenticationStateChanged?.Invoke();
     }
-
-    public HttpClient CreateAuthorizedClient()
-    {
-        var client = _httpClientFactory.CreateClient("SlottetApi");
-
-        if (!string.IsNullOrWhiteSpace(AccessToken))
-        {
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AccessToken);
-        }
-
-        return client;
-    }
-
     private static string GetDefaultDepartment(string role)
     {
         return role == "Medarbejder" ? "Slottet" : "Slottet";
