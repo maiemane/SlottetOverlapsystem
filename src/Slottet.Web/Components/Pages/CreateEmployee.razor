@@ -1,4 +1,7 @@
 @page "/admin/opret-medarbejder"
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using System.Net.Http.Json
 @inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
@@ -8,17 +11,350 @@
 {
     <section class="p-4">
         <h1>Opret Medarbejder</h1>
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+            <h2 class="h4 mb-0">Medarbejdere</h2>
+            <button type="button" class="btn btn-primary" @onclick="ShowCreateForm">
+                Tilføj medarbejder
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@LoadErrorMessage</div>
+        }
+        else if (IsLoadingEmployees)
+        {
+            <p>Indlæser medarbejdere...</p>
+        }
+        else if (Employees.Count == 0)
+        {
+            <p>Der er ingen medarbejdere endnu.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Navn</th>
+                            <th>Email</th>
+                            <th>Rolle</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var employee in Employees)
+                        {
+                            <tr>
+                                <td>@employee.Name</td>
+                                <td>@employee.Email</td>
+                                <td>@employee.Role</td>
+                                <td>@(employee.IsActive ? "Aktiv" : "Inaktiv")</td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-outline-danger btn-sm" @onclick="@(() => PromptDelete(employee))">
+                                        Slet
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (IsCreateFormVisible)
+        {
+            <div class="card mt-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h4 mb-0">Ny medarbejder</h2>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="HideCreateForm">
+                            Luk
+                        </button>
+                    </div>
+
+                    <EditForm Model="@Model" OnValidSubmit="@HandleSubmitAsync">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label" for="employee-name">Navn</label>
+                            <InputText id="employee-name" class="form-control" @bind-Value="Model.Name" />
+                            <ValidationMessage For="@(() => Model.Name)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="employee-email">Email</label>
+                            <InputText id="employee-email" class="form-control" @bind-Value="Model.Email" />
+                            <ValidationMessage For="@(() => Model.Email)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="employee-password">Password</label>
+                            <InputText id="employee-password" type="password" class="form-control" @bind-Value="Model.Password" />
+                            <ValidationMessage For="@(() => Model.Password)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="employee-role">Rolle</label>
+                            <InputSelect id="employee-role" class="form-select" @bind-Value="Model.Role">
+                                <option value="">Vælg rolle</option>
+                                <option value="Admin">Admin</option>
+                                <option value="Medarbejder">Medarbejder</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => Model.Role)" />
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <InputCheckbox id="employee-active" class="form-check-input" @bind-Value="Model.IsActive" />
+                            <label class="form-check-label" for="employee-active">Aktiv medarbejder</label>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+                        {
+                            <div class="alert alert-success" role="alert">@SuccessMessage</div>
+                        }
+
+                        <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                            @(IsSubmitting ? "Opretter..." : "Opret medarbejder")
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        }
+
+        @if (EmployeePendingDelete is not null)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5 mb-0">Bekræft sletning</h2>
+                            <button type="button" class="btn-close" aria-label="Close" @onclick="CancelDelete"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">Er du sikker på, at du vil slette @EmployeePendingDelete.Name?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@IsDeleting">
+                                Annuller
+                            </button>
+                            <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@IsDeleting">
+                                @(IsDeleting ? "Sletter..." : "Ja, slet")
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </section>
 }
 
 @code {
     private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private List<EmployeeListItem> Employees { get; set; } = [];
+    private CreateEmployeeFormModel Model { get; set; } = new();
+    private bool IsLoadingEmployees { get; set; }
+    private bool IsSubmitting { get; set; }
+    private bool IsDeleting { get; set; }
+    private bool IsCreateFormVisible { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? LoadErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private EmployeeListItem? EmployeePendingDelete { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (!IsAdmin)
         {
             NavigationManager.NavigateTo("/app", replace: true);
+            return;
         }
+
+        await LoadEmployeesAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        IsSubmitting = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsJsonAsync("api/employees", new
+            {
+                name = Model.Name.Trim(),
+                email = Model.Email.Trim(),
+                password = Model.Password,
+                role = Model.Role,
+                isActive = Model.IsActive
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Medarbejderen blev oprettet.";
+                Model = new CreateEmployeeFormModel();
+                await LoadEmployeesAsync();
+                return;
+            }
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                ErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke oprette medarbejderen."
+                    : apiMessage;
+                return;
+            }
+
+            ErrorMessage = "Der opstod en fejl ved oprettelse af medarbejderen.";
+        }
+        catch (HttpRequestException)
+        {
+            ErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        IsCreateFormVisible = true;
+    }
+
+    private void HideCreateForm()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        Model = new CreateEmployeeFormModel();
+        IsCreateFormVisible = false;
+    }
+
+    private void PromptDelete(EmployeeListItem employee)
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        EmployeePendingDelete = employee;
+    }
+
+    private void CancelDelete()
+    {
+        EmployeePendingDelete = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (EmployeePendingDelete is null)
+        {
+            return;
+        }
+
+        IsDeleting = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.DeleteAsync($"api/employees/{EmployeePendingDelete.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Medarbejderen blev slettet.";
+                EmployeePendingDelete = null;
+                await LoadEmployeesAsync();
+                return;
+            }
+
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict or HttpStatusCode.BadRequest)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                ErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke slette medarbejderen."
+                    : apiMessage;
+                return;
+            }
+
+            ErrorMessage = "Der opstod en fejl ved sletning af medarbejderen.";
+        }
+        catch (HttpRequestException)
+        {
+            ErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsDeleting = false;
+        }
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        IsLoadingEmployees = true;
+        LoadErrorMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/employees");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var employees = await response.Content.ReadFromJsonAsync<List<EmployeeListItem>>();
+                Employees = employees ?? [];
+                return;
+            }
+
+            var apiMessage = await response.Content.ReadAsStringAsync();
+            LoadErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                ? $"Kunne ikke hente medarbejdere fra API'et. HTTP {(int)response.StatusCode}."
+                : $"Kunne ikke hente medarbejdere fra API'et. HTTP {(int)response.StatusCode}: {apiMessage}";
+        }
+        catch (HttpRequestException)
+        {
+            LoadErrorMessage = "Kunne ikke hente medarbejdere fra API'et.";
+        }
+        finally
+        {
+            IsLoadingEmployees = false;
+        }
+    }
+
+    private sealed class CreateEmployeeFormModel
+    {
+        [Required(ErrorMessage = "Navn er påkrævet.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email er påkrævet.")]
+        [EmailAddress(ErrorMessage = "Email er ugyldig.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password er påkrævet.")]
+        [MinLength(6, ErrorMessage = "Password skal være mindst 6 tegn.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Rolle er påkrævet.")]
+        public string Role { get; set; } = string.Empty;
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    private sealed class EmployeeListItem
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
     }
 }

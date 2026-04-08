@@ -152,9 +152,36 @@ public class LoginServiceTests
             _employee = employee;
         }
 
+        public Task<IReadOnlyList<Employee>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<Employee> employees = _employee is null ? [] : [_employee];
+            return Task.FromResult(employees);
+        }
+
         public Task<Employee?> GetActiveByEmailAsync(string email, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_employee);
+        }
+
+        public Task<Employee?> GetByIdAsync(int employeeId, CancellationToken cancellationToken = default)
+        {
+            var employee = _employee?.Id == employeeId ? _employee : null;
+            return Task.FromResult(employee);
+        }
+
+        public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_employee is not null);
+        }
+
+        public Task<Employee> CreateAsync(Employee employee, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(employee);
+        }
+
+        public Task<bool> DeleteAsync(Employee employee, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(true);
         }
     }
 
