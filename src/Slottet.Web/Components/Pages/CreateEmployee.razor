@@ -52,6 +52,9 @@
                                 <td>@employee.Role</td>
                                 <td>@(employee.IsActive ? "Aktiv" : "Inaktiv")</td>
                                 <td class="text-end">
+                                    <button type="button" class="btn btn-outline-primary btn-sm me-2" @onclick="@(() => ShowEditForm(employee))">
+                                        Rediger
+                                    </button>
                                     <button type="button" class="btn btn-outline-danger btn-sm" @onclick="@(() => PromptDelete(employee))">
                                         Slet
                                     </button>
@@ -100,6 +103,7 @@
                                         <option value="">Vælg rolle</option>
                                         <option value="Admin">Admin</option>
                                         <option value="Medarbejder">Medarbejder</option>
+                                        <option value="Vagtansvarlig">Vagtansvarlig</option>
                                     </InputSelect>
                                     <ValidationMessage For="@(() => Model.Role)" />
                                 </div>
@@ -125,6 +129,67 @@
                                     </button>
                                     <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
                                         @(IsSubmitting ? "Opretter..." : "Opret medarbejder")
+                                    </button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (EmployeeBeingEdited is not null)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5 mb-0">Rediger medarbejder</h2>
+                            <button type="button" class="btn-close" aria-label="Close" @onclick="HideEditForm"></button>
+                        </div>
+                        <div class="modal-body">
+                            <EditForm Model="@EditModel" OnValidSubmit="@HandleEditAsync">
+                                <DataAnnotationsValidator />
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-employee-name">Navn</label>
+                                    <InputText id="edit-employee-name" class="form-control" @bind-Value="EditModel.Name" />
+                                    <ValidationMessage For="@(() => EditModel.Name)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-employee-email">Email</label>
+                                    <InputText id="edit-employee-email" class="form-control" @bind-Value="EditModel.Email" />
+                                    <ValidationMessage For="@(() => EditModel.Email)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-employee-role">Rolle</label>
+                                    <InputSelect id="edit-employee-role" class="form-select" @bind-Value="EditModel.Role">
+                                        <option value="">Vælg rolle</option>
+                                        <option value="Admin">Admin</option>
+                                        <option value="Medarbejder">Medarbejder</option>
+                                        <option value="Vagtansvarlig">Vagtansvarlig</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => EditModel.Role)" />
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <InputCheckbox id="edit-employee-active" class="form-check-input" @bind-Value="EditModel.IsActive" />
+                                    <label class="form-check-label" for="edit-employee-active">Aktiv medarbejder</label>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(EditErrorMessage))
+                                {
+                                    <div class="alert alert-danger" role="alert">@EditErrorMessage</div>
+                                }
+
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="HideEditForm" disabled="@IsEditing">
+                                        Annuller
+                                    </button>
+                                    <button type="submit" class="btn btn-primary" disabled="@IsEditing">
+                                        @(IsEditing ? "Gemmer..." : "Gem ændringer")
                                     </button>
                                 </div>
                             </EditForm>
@@ -165,13 +230,17 @@
     private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
     private List<EmployeeListItem> Employees { get; set; } = [];
     private CreateEmployeeFormModel Model { get; set; } = new();
+    private EditEmployeeFormModel EditModel { get; set; } = new();
     private bool IsLoadingEmployees { get; set; }
     private bool IsSubmitting { get; set; }
+    private bool IsEditing { get; set; }
     private bool IsDeleting { get; set; }
     private bool IsCreateFormVisible { get; set; }
     private string? ErrorMessage { get; set; }
+    private string? EditErrorMessage { get; set; }
     private string? LoadErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+    private EmployeeListItem? EmployeeBeingEdited { get; set; }
     private EmployeeListItem? EmployeePendingDelete { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -237,6 +306,7 @@
     {
         ErrorMessage = null;
         SuccessMessage = null;
+        Model = new CreateEmployeeFormModel();
         IsCreateFormVisible = true;
     }
 
@@ -246,6 +316,78 @@
         SuccessMessage = null;
         Model = new CreateEmployeeFormModel();
         IsCreateFormVisible = false;
+    }
+
+    private void ShowEditForm(EmployeeListItem employee)
+    {
+        SuccessMessage = null;
+        EditErrorMessage = null;
+        EmployeeBeingEdited = employee;
+        EditModel = new EditEmployeeFormModel
+        {
+            Name = employee.Name,
+            Email = employee.Email,
+            Role = employee.Role,
+            IsActive = employee.IsActive
+        };
+    }
+
+    private void HideEditForm()
+    {
+        EditErrorMessage = null;
+        EmployeeBeingEdited = null;
+        EditModel = new EditEmployeeFormModel();
+    }
+
+    private async Task HandleEditAsync()
+    {
+        if (EmployeeBeingEdited is null)
+        {
+            return;
+        }
+
+        IsEditing = true;
+        EditErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.PutAsJsonAsync($"api/employees/{EmployeeBeingEdited.Id}", new
+            {
+                name = EditModel.Name.Trim(),
+                email = EditModel.Email.Trim(),
+                role = EditModel.Role,
+                isActive = EditModel.IsActive
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Medarbejderen blev opdateret.";
+                await LoadEmployeesAsync();
+                HideEditForm();
+                return;
+            }
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict or HttpStatusCode.NotFound)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                EditErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke opdatere medarbejderen."
+                    : apiMessage;
+                return;
+            }
+
+            EditErrorMessage = "Der opstod en fejl ved opdatering af medarbejderen.";
+        }
+        catch (HttpRequestException)
+        {
+            EditErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsEditing = false;
+        }
     }
 
     private void PromptDelete(EmployeeListItem employee)
@@ -349,6 +491,21 @@
         [Required(ErrorMessage = "Password er påkrævet.")]
         [MinLength(6, ErrorMessage = "Password skal være mindst 6 tegn.")]
         public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Rolle er påkrævet.")]
+        public string Role { get; set; } = string.Empty;
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    private sealed class EditEmployeeFormModel
+    {
+        [Required(ErrorMessage = "Navn er påkrævet.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email er påkrævet.")]
+        [EmailAddress(ErrorMessage = "Email er ugyldig.")]
+        public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Rolle er påkrævet.")]
         public string Role { get; set; } = string.Empty;

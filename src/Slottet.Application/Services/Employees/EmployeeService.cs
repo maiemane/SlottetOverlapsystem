@@ -6,7 +6,7 @@ namespace Slottet.Application.Services.Employees;
 
 public sealed class EmployeeService : IEmployeeService
 {
-    private static readonly string[] AllowedRoles = ["Admin", "Medarbejder"];
+    private static readonly string[] AllowedRoles = ["Admin", "Medarbejder", "Vagtansvarlig"];
     private readonly IEmployeeRepository _employeeRepository;
     private readonly IPasswordHashingService _passwordHashingService;
 
@@ -35,31 +35,14 @@ public sealed class EmployeeService : IEmployeeService
 
     public async Task<CreateEmployeeResultDto> CreateAsync(CreateEmployeeRequestDto request, CancellationToken cancellationToken = default)
     {
-        var normalizedName = request.Name.Trim();
-        var normalizedEmail = request.Email.Trim();
-        var normalizedRole = request.Role.Trim();
+        var validation = ValidateEmployeeData(request.Name, request.Email, request.Role);
 
-        if (string.IsNullOrWhiteSpace(normalizedName) ||
-            string.IsNullOrWhiteSpace(normalizedEmail) ||
-            string.IsNullOrWhiteSpace(request.Password) ||
-            string.IsNullOrWhiteSpace(normalizedRole))
+        if (!validation.IsSuccess)
         {
             return new CreateEmployeeResultDto
             {
                 IsSuccess = false,
-                Error = "MissingFields"
-            };
-        }
-
-        var resolvedRole = AllowedRoles.FirstOrDefault(role =>
-            string.Equals(role, normalizedRole, StringComparison.OrdinalIgnoreCase));
-
-        if (resolvedRole is null)
-        {
-            return new CreateEmployeeResultDto
-            {
-                IsSuccess = false,
-                Error = "InvalidRole"
+                Error = validation.Error
             };
         }
 
@@ -72,7 +55,7 @@ public sealed class EmployeeService : IEmployeeService
             };
         }
 
-        var emailInUse = await _employeeRepository.EmailExistsAsync(normalizedEmail, cancellationToken);
+        var emailInUse = await _employeeRepository.EmailExistsAsync(validation.Email!, cancellationToken: cancellationToken);
 
         if (emailInUse)
         {
@@ -85,9 +68,9 @@ public sealed class EmployeeService : IEmployeeService
 
         var employee = new Employee
         {
-            Name = normalizedName,
-            Email = normalizedEmail,
-            Role = resolvedRole,
+            Name = validation.Name!,
+            Email = validation.Email!,
+            Role = validation.Role!,
             IsActive = request.IsActive
         };
 
@@ -99,6 +82,64 @@ public sealed class EmployeeService : IEmployeeService
         {
             IsSuccess = true,
             Employee = MapEmployee(createdEmployee)
+        };
+    }
+
+    public async Task<UpdateEmployeeResultDto> UpdateAsync(int employeeId, UpdateEmployeeRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (employeeId <= 0)
+        {
+            return new UpdateEmployeeResultDto
+            {
+                IsSuccess = false,
+                Error = "NotFound"
+            };
+        }
+
+        var employee = await _employeeRepository.GetByIdAsync(employeeId, cancellationToken);
+
+        if (employee is null)
+        {
+            return new UpdateEmployeeResultDto
+            {
+                IsSuccess = false,
+                Error = "NotFound"
+            };
+        }
+
+        var validation = ValidateEmployeeData(request.Name, request.Email, request.Role);
+
+        if (!validation.IsSuccess)
+        {
+            return new UpdateEmployeeResultDto
+            {
+                IsSuccess = false,
+                Error = validation.Error
+            };
+        }
+
+        var emailInUse = await _employeeRepository.EmailExistsAsync(validation.Email!, employeeId, cancellationToken);
+
+        if (emailInUse)
+        {
+            return new UpdateEmployeeResultDto
+            {
+                IsSuccess = false,
+                Error = "EmailAlreadyExists"
+            };
+        }
+
+        employee.Name = validation.Name!;
+        employee.Email = validation.Email!;
+        employee.Role = validation.Role!;
+        employee.IsActive = request.IsActive;
+
+        var updatedEmployee = await _employeeRepository.UpdateAsync(employee, cancellationToken);
+
+        return new UpdateEmployeeResultDto
+        {
+            IsSuccess = true,
+            Employee = MapEmployee(updatedEmployee)
         };
     }
 
@@ -151,5 +192,50 @@ public sealed class EmployeeService : IEmployeeService
             Role = employee.Role,
             IsActive = employee.IsActive
         };
+    }
+
+    private static EmployeeValidationResult ValidateEmployeeData(string name, string email, string role)
+    {
+        var normalizedName = name.Trim();
+        var normalizedEmail = email.Trim();
+        var normalizedRole = role.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedName) ||
+            string.IsNullOrWhiteSpace(normalizedEmail) ||
+            string.IsNullOrWhiteSpace(normalizedRole))
+        {
+            return new EmployeeValidationResult
+            {
+                Error = "MissingFields"
+            };
+        }
+
+        var resolvedRole = AllowedRoles.FirstOrDefault(candidate =>
+            string.Equals(candidate, normalizedRole, StringComparison.OrdinalIgnoreCase));
+
+        if (resolvedRole is null)
+        {
+            return new EmployeeValidationResult
+            {
+                Error = "InvalidRole"
+            };
+        }
+
+        return new EmployeeValidationResult
+        {
+            IsSuccess = true,
+            Name = normalizedName,
+            Email = normalizedEmail,
+            Role = resolvedRole
+        };
+    }
+
+    private sealed class EmployeeValidationResult
+    {
+        public bool IsSuccess { get; init; }
+        public string? Error { get; init; }
+        public string? Name { get; init; }
+        public string? Email { get; init; }
+        public string? Role { get; init; }
     }
 }

@@ -36,18 +36,27 @@ public class EmployeeRepository : IEmployeeRepository
             .FirstOrDefaultAsync(x => x.Id == employeeId, cancellationToken);
     }
 
-    public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default)
+    public Task<bool> EmailExistsAsync(string email, int? excludeEmployeeId = null, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim().ToUpper();
 
         return _dbContext.Employees
             .AsNoTracking()
-            .AnyAsync(x => x.Email.ToUpper() == normalizedEmail, cancellationToken);
+            .AnyAsync(x =>
+                x.Email.ToUpper() == normalizedEmail &&
+                (!excludeEmployeeId.HasValue || x.Id != excludeEmployeeId.Value),
+                cancellationToken);
     }
 
     public async Task<Employee> CreateAsync(Employee employee, CancellationToken cancellationToken = default)
     {
         _dbContext.Employees.Add(employee);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return employee;
+    }
+
+    public async Task<Employee> UpdateAsync(Employee employee, CancellationToken cancellationToken = default)
+    {
         await _dbContext.SaveChangesAsync(cancellationToken);
         return employee;
     }

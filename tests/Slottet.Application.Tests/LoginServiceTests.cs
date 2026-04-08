@@ -169,12 +169,17 @@ public class LoginServiceTests
             return Task.FromResult(employee);
         }
 
-        public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default)
+        public Task<bool> EmailExistsAsync(string email, int? excludeEmployeeId = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_employee is not null);
         }
 
         public Task<Employee> CreateAsync(Employee employee, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(employee);
+        }
+
+        public Task<Employee> UpdateAsync(Employee employee, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(employee);
         }

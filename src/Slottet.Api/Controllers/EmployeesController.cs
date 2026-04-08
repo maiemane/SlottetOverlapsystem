@@ -44,6 +44,26 @@ public sealed class EmployeesController : ControllerBase
         return Created($"api/employees/{result.Employee!.Id}", result.Employee);
     }
 
+    [HttpPut("{employeeId:int}")]
+    public async Task<ActionResult<EmployeeDto>> Update(int employeeId, [FromBody] UpdateEmployeeRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _employeeService.UpdateAsync(employeeId, request, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                "NotFound" => NotFound("Medarbejderen blev ikke fundet."),
+                "MissingFields" => BadRequest("Navn, email og rolle er påkrævet."),
+                "InvalidRole" => BadRequest("Rollen er ugyldig."),
+                "EmailAlreadyExists" => Conflict("Der findes allerede en medarbejder med den email."),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        }
+
+        return Ok(result.Employee);
+    }
+
     [HttpDelete("{employeeId:int}")]
     public async Task<IActionResult> Delete(int employeeId, CancellationToken cancellationToken)
     {

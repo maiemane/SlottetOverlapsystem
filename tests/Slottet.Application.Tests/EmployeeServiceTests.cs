@@ -53,6 +53,86 @@ public class EmployeeServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_Allows_vagtansvarlig_role()
+    {
+        var repository = new FakeEmployeeRepository(emailExists: false);
+        var sut = new EmployeeService(repository, new FakePasswordHashingService());
+
+        var result = await sut.CreateAsync(new CreateEmployeeRequestDto
+        {
+            Name = "Anna Jensen",
+            Email = "anna@slottet.dk",
+            Password = "Password123",
+            Role = "Vagtansvarlig"
+        }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Vagtansvarlig", repository.CreatedEmployee!.Role);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Updates_employee()
+    {
+        var repository = new FakeEmployeeRepository(emailExists: false)
+        {
+            EmployeeById = new Employee
+            {
+                Id = 42,
+                Name = "Anna Jensen",
+                Email = "anna@slottet.dk",
+                Role = "Medarbejder",
+                IsActive = true
+            }
+        };
+
+        var sut = new EmployeeService(repository, new FakePasswordHashingService());
+
+        var result = await sut.UpdateAsync(42, new UpdateEmployeeRequestDto
+        {
+            Name = "Anna Holm",
+            Email = "anna.holm@slottet.dk",
+            Role = "Vagtansvarlig",
+            IsActive = false
+        }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Employee);
+        Assert.Equal("Anna Holm", repository.UpdatedEmployee!.Name);
+        Assert.Equal("anna.holm@slottet.dk", repository.UpdatedEmployee.Email);
+        Assert.Equal("Vagtansvarlig", repository.UpdatedEmployee.Role);
+        Assert.False(repository.UpdatedEmployee.IsActive);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Returns_failure_when_email_already_exists()
+    {
+        var repository = new FakeEmployeeRepository(emailExists: true)
+        {
+            EmployeeById = new Employee
+            {
+                Id = 42,
+                Name = "Anna Jensen",
+                Email = "anna@slottet.dk",
+                Role = "Medarbejder",
+                IsActive = true
+            }
+        };
+
+        var sut = new EmployeeService(repository, new FakePasswordHashingService());
+
+        var result = await sut.UpdateAsync(42, new UpdateEmployeeRequestDto
+        {
+            Name = "Anna Jensen",
+            Email = "anna.holm@slottet.dk",
+            Role = "Admin",
+            IsActive = true
+        }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("EmailAlreadyExists", result.Error);
+    }
+
+    [Fact]
     public async Task DeleteAsync_Returns_success_when_employee_is_deleted()
     {
         var repository = new FakeEmployeeRepository(emailExists: false)
@@ -133,6 +213,7 @@ public class EmployeeServiceTests
         }
 
         public Employee? CreatedEmployee { get; private set; }
+        public Employee? UpdatedEmployee { get; private set; }
         public IReadOnlyList<Employee> Employees { get; init; } = [];
         public Employee? EmployeeById { get; init; }
         public bool DeleteResult { get; init; } = true;
@@ -153,7 +234,7 @@ public class EmployeeServiceTests
             return Task.FromResult(EmployeeById);
         }
 
-        public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default)
+        public Task<bool> EmailExistsAsync(string email, int? excludeEmployeeId = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_emailExists);
         }
@@ -162,6 +243,12 @@ public class EmployeeServiceTests
         {
             employee.Id = 42;
             CreatedEmployee = employee;
+            return Task.FromResult(employee);
+        }
+
+        public Task<Employee> UpdateAsync(Employee employee, CancellationToken cancellationToken = default)
+        {
+            UpdatedEmployee = employee;
             return Task.FromResult(employee);
         }
 
