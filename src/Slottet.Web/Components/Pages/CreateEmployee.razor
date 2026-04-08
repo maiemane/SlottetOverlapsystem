@@ -65,65 +65,71 @@
 
         @if (IsCreateFormVisible)
         {
-            <div class="card mt-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 class="h4 mb-0">Ny medarbejder</h2>
-                        <button type="button" class="btn btn-outline-secondary" @onclick="HideCreateForm">
-                            Luk
-                        </button>
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5 mb-0">Ny medarbejder</h2>
+                            <button type="button" class="btn-close" aria-label="Close" @onclick="HideCreateForm"></button>
+                        </div>
+                        <div class="modal-body">
+                            <EditForm Model="@Model" OnValidSubmit="@HandleSubmitAsync">
+                                <DataAnnotationsValidator />
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="employee-name">Navn</label>
+                                    <InputText id="employee-name" class="form-control" @bind-Value="Model.Name" />
+                                    <ValidationMessage For="@(() => Model.Name)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="employee-email">Email</label>
+                                    <InputText id="employee-email" class="form-control" @bind-Value="Model.Email" />
+                                    <ValidationMessage For="@(() => Model.Email)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="employee-password">Password</label>
+                                    <InputText id="employee-password" type="password" class="form-control" @bind-Value="Model.Password" />
+                                    <ValidationMessage For="@(() => Model.Password)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="employee-role">Rolle</label>
+                                    <InputSelect id="employee-role" class="form-select" @bind-Value="Model.Role">
+                                        <option value="">Vælg rolle</option>
+                                        <option value="Admin">Admin</option>
+                                        <option value="Medarbejder">Medarbejder</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => Model.Role)" />
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <InputCheckbox id="employee-active" class="form-check-input" @bind-Value="Model.IsActive" />
+                                    <label class="form-check-label" for="employee-active">Aktiv medarbejder</label>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                                {
+                                    <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+                                {
+                                    <div class="alert alert-success" role="alert">@SuccessMessage</div>
+                                }
+
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="HideCreateForm" disabled="@IsSubmitting">
+                                        Annuller
+                                    </button>
+                                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                                        @(IsSubmitting ? "Opretter..." : "Opret medarbejder")
+                                    </button>
+                                </div>
+                            </EditForm>
+                        </div>
                     </div>
-
-                    <EditForm Model="@Model" OnValidSubmit="@HandleSubmitAsync">
-                        <DataAnnotationsValidator />
-
-                        <div class="mb-3">
-                            <label class="form-label" for="employee-name">Navn</label>
-                            <InputText id="employee-name" class="form-control" @bind-Value="Model.Name" />
-                            <ValidationMessage For="@(() => Model.Name)" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="employee-email">Email</label>
-                            <InputText id="employee-email" class="form-control" @bind-Value="Model.Email" />
-                            <ValidationMessage For="@(() => Model.Email)" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="employee-password">Password</label>
-                            <InputText id="employee-password" type="password" class="form-control" @bind-Value="Model.Password" />
-                            <ValidationMessage For="@(() => Model.Password)" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="employee-role">Rolle</label>
-                            <InputSelect id="employee-role" class="form-select" @bind-Value="Model.Role">
-                                <option value="">Vælg rolle</option>
-                                <option value="Admin">Admin</option>
-                                <option value="Medarbejder">Medarbejder</option>
-                            </InputSelect>
-                            <ValidationMessage For="@(() => Model.Role)" />
-                        </div>
-
-                        <div class="form-check mb-3">
-                            <InputCheckbox id="employee-active" class="form-check-input" @bind-Value="Model.IsActive" />
-                            <label class="form-check-label" for="employee-active">Aktiv medarbejder</label>
-                        </div>
-
-                        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
-                        {
-                            <div class="alert alert-danger" role="alert">@ErrorMessage</div>
-                        }
-
-                        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
-                        {
-                            <div class="alert alert-success" role="alert">@SuccessMessage</div>
-                        }
-
-                        <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
-                            @(IsSubmitting ? "Opretter..." : "Opret medarbejder")
-                        </button>
-                    </EditForm>
                 </div>
             </div>
         }
@@ -202,6 +208,7 @@
                 SuccessMessage = "Medarbejderen blev oprettet.";
                 Model = new CreateEmployeeFormModel();
                 await LoadEmployeesAsync();
+                IsCreateFormVisible = false;
                 return;
             }
 
