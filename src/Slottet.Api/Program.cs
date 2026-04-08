@@ -9,6 +9,7 @@ using Slottet.Application.Services.Auth;
 using Slottet.Application.Services.Employees;
 using Slottet.Application.Services.Citizens;
 using Slottet.Application.Services.Overlap;
+using Slottet.Application.Services.Staffing;
 using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
 using Slottet.Infrastructure.Repositories;
@@ -82,6 +83,7 @@ builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<ICreateCitizenService, CreateCitizenService>();
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
+builder.Services.AddScoped<IStaffAllocationService, StaffAllocationService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();
@@ -89,6 +91,7 @@ builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationSer
 builder.Services.AddScoped<ICitizenCreationRepository, CitizenCreationRepository>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<IOverlapOverviewRepository, OverlapOverviewRepository>();
+builder.Services.AddScoped<IStaffAllocationRepository, StaffAllocationRepository>();
 
 var app = builder.Build();
 
