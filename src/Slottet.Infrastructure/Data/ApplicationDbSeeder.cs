@@ -14,6 +14,18 @@ public static class ApplicationDbSeeder
 
         await dbContext.Database.MigrateAsync(cancellationToken);
 
+        if (!await dbContext.Departments.AnyAsync(cancellationToken))
+        {
+            var departments = new[]
+            {
+                new Department { Id = 1, Name = "Slottet" },
+                new Department { Id = 2, Name = "Skoven" }
+            };
+
+            await dbContext.Departments.AddRangeAsync(departments, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         if (await dbContext.Employees.AnyAsync(cancellationToken))
         {
             return;
