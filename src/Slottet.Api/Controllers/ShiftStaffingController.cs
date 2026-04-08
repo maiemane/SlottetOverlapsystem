@@ -17,6 +17,21 @@ public sealed class ShiftStaffingController : ControllerBase
         _staffAllocationService = staffAllocationService;
     }
 
+    [HttpGet("employees")]
+    public async Task<ActionResult<ShiftStaffingDto>> GetShiftEmployees(
+        int shiftId,
+        CancellationToken cancellationToken)
+    {
+        var staffing = await _staffAllocationService.GetShiftEmployeesAsync(shiftId, cancellationToken);
+
+        if (staffing is null)
+        {
+            return NotFound("Vagten blev ikke fundet.");
+        }
+
+        return Ok(staffing);
+    }
+
     [HttpPut("employees")]
     public async Task<ActionResult<AssignEmployeesToShiftResponse>> AssignEmployeesToShift(
         int shiftId,
@@ -37,6 +52,22 @@ public sealed class ShiftStaffingController : ControllerBase
         }
 
         return Ok(result.Assignment);
+    }
+
+    [HttpGet("citizens/{citizenId:int}/employees")]
+    public async Task<ActionResult<CitizenStaffingDto>> GetCitizenEmployees(
+        int shiftId,
+        int citizenId,
+        CancellationToken cancellationToken)
+    {
+        var staffing = await _staffAllocationService.GetCitizenEmployeesAsync(shiftId, citizenId, cancellationToken);
+
+        if (staffing is null)
+        {
+            return NotFound("Vagten eller borgeren blev ikke fundet, eller borgeren tilhoerer ikke den valgte afdelings vagt.");
+        }
+
+        return Ok(staffing);
     }
 
     [HttpPut("citizens/{citizenId:int}/employees")]

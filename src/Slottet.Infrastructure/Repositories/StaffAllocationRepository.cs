@@ -41,6 +41,44 @@ public sealed class StaffAllocationRepository : IStaffAllocationRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Employee>> GetEmployeesByShiftAsync(int shiftId, CancellationToken cancellationToken = default)
+    {
+        var employeeIds = await _dbContext.ShiftEmployees
+            .AsNoTracking()
+            .Where(shiftEmployee => shiftEmployee.ShiftId == shiftId)
+            .Select(shiftEmployee => shiftEmployee.EmployeeId)
+            .ToListAsync(cancellationToken);
+
+        if (employeeIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.Employees
+            .AsNoTracking()
+            .Where(employee => employeeIds.Contains(employee.Id))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Employee>> GetEmployeesByCitizenAssignmentAsync(int shiftId, int citizenId, CancellationToken cancellationToken = default)
+    {
+        var employeeIds = await _dbContext.CitizenAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.ShiftId == shiftId && assignment.CitizenId == citizenId)
+            .Select(assignment => assignment.EmployeeId)
+            .ToListAsync(cancellationToken);
+
+        if (employeeIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.Employees
+            .AsNoTracking()
+            .Where(employee => employeeIds.Contains(employee.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<int>> GetShiftEmployeeIdsAsync(int shiftId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.ShiftEmployees

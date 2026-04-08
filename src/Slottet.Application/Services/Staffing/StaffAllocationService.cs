@@ -12,6 +12,60 @@ public sealed class StaffAllocationService : IStaffAllocationService
         _staffAllocationRepository = staffAllocationRepository;
     }
 
+    public async Task<ShiftStaffingDto?> GetShiftEmployeesAsync(int shiftId, CancellationToken cancellationToken = default)
+    {
+        if (shiftId <= 0)
+        {
+            return null;
+        }
+
+        var shift = await _staffAllocationRepository.GetShiftByIdAsync(shiftId, cancellationToken);
+
+        if (shift is null)
+        {
+            return null;
+        }
+
+        var employees = await _staffAllocationRepository.GetEmployeesByShiftAsync(shiftId, cancellationToken);
+
+        return new ShiftStaffingDto
+        {
+            ShiftId = shiftId,
+            Employees = employees
+                .OrderBy(employee => employee.Name)
+                .Select(MapStaffMember)
+                .ToList()
+        };
+    }
+
+    public async Task<CitizenStaffingDto?> GetCitizenEmployeesAsync(int shiftId, int citizenId, CancellationToken cancellationToken = default)
+    {
+        if (shiftId <= 0 || citizenId <= 0)
+        {
+            return null;
+        }
+
+        var shift = await _staffAllocationRepository.GetShiftByIdAsync(shiftId, cancellationToken);
+        var citizen = await _staffAllocationRepository.GetCitizenByIdAsync(citizenId, cancellationToken);
+
+        if (shift is null || citizen is null || !citizen.IsActive || citizen.DepartmentId != shift.DepartmentId)
+        {
+            return null;
+        }
+
+        var employees = await _staffAllocationRepository.GetEmployeesByCitizenAssignmentAsync(shiftId, citizenId, cancellationToken);
+
+        return new CitizenStaffingDto
+        {
+            ShiftId = shiftId,
+            CitizenId = citizenId,
+            Employees = employees
+                .OrderBy(employee => employee.Name)
+                .Select(MapStaffMember)
+                .ToList()
+        };
+    }
+
     public async Task<AssignEmployeesToShiftResult> AssignEmployeesToShiftAsync(int shiftId, AssignEmployeesToShiftRequest request, CancellationToken cancellationToken = default)
     {
         if (shiftId <= 0 || request.EmployeeIds is null)
@@ -153,6 +207,17 @@ public sealed class StaffAllocationService : IStaffAllocationService
         {
             IsSuccess = false,
             Error = "InvalidRequest"
+        };
+    }
+
+    private static StaffMemberDto MapStaffMember(Domain.Entities.Employee employee)
+    {
+        return new StaffMemberDto
+        {
+            EmployeeId = employee.Id,
+            Name = employee.Name,
+            Email = employee.Email,
+            Role = employee.Role
         };
     }
 }
