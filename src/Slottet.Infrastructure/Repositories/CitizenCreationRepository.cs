@@ -27,6 +27,26 @@ public sealed class CitizenCreationRepository : ICitizenCreationRepository
             .FirstOrDefaultAsync(citizen => citizen.Id == citizenId, cancellationToken);
     }
 
+    public Task<Citizen?> GetCitizenByIdAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Citizens
+            .AsNoTracking()
+            .FirstOrDefaultAsync(citizen => citizen.Id == citizenId, cancellationToken);
+    }
+
+    public Task<CitizenFixedMedication?> GetFixedMedicationByIdAsync(int fixedMedicationId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.CitizenFixedMedications
+            .FirstOrDefaultAsync(fixedMedication => fixedMedication.Id == fixedMedicationId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.CitizenFixedMedications
+            .AsNoTracking()
+            .Where(fixedMedication => fixedMedication.CitizenId == citizenId)
+            .ToListAsync(cancellationToken);
+    }
     public Task<Department?> GetDepartmentByIdAsync(int departmentId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Departments
@@ -61,5 +81,19 @@ public sealed class CitizenCreationRepository : ICitizenCreationRepository
             _dbContext.Entry(citizen).State = EntityState.Unchanged;
             return false;
         }
+    }
+
+    public async Task<CitizenFixedMedication> AddFixedMedicationAsync(CitizenFixedMedication fixedMedication, CancellationToken cancellationToken = default)
+    {
+        _dbContext.CitizenFixedMedications.Add(fixedMedication);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return fixedMedication;
+    }
+
+    public async Task<CitizenFixedMedication> UpdateFixedMedicationAsync(CitizenFixedMedication fixedMedication, CancellationToken cancellationToken = default)
+    {
+        _dbContext.CitizenFixedMedications.Update(fixedMedication);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return fixedMedication;
     }
 }

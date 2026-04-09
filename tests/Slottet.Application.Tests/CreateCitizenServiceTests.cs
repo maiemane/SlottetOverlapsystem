@@ -179,6 +179,16 @@ public class CreateCitizenServiceTests
             return Task.FromResult<Citizen?>(null);
         }
 
+        public Task<Citizen?> GetCitizenByIdAsync(int citizenId, CancellationToken cancellationToken = default)
+        {
+            if (CitizenById?.Id == citizenId)
+            {
+                return Task.FromResult<Citizen?>(CitizenById);
+            }
+
+            return Task.FromResult<Citizen?>(null);
+        }
+
         public Task<Department?> GetDepartmentByIdAsync(int departmentId, CancellationToken cancellationToken = default)
         {
             Department? department = departmentId switch
@@ -189,6 +199,16 @@ public class CreateCitizenServiceTests
             };
 
             return Task.FromResult(department);
+        }
+
+        public Task<CitizenFixedMedication?> GetFixedMedicationByIdAsync(int fixedMedicationId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<CitizenFixedMedication?>(null);
+        }
+
+        public Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<CitizenFixedMedication>>([]);
         }
 
         public Task<Citizen> AddCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default)
@@ -207,6 +227,17 @@ public class CreateCitizenServiceTests
         {
             DeletedCitizenId = citizen.Id;
             return Task.FromResult(DeleteSucceeds);
+        }
+
+        public Task<CitizenFixedMedication> AddFixedMedicationAsync(CitizenFixedMedication fixedMedication, CancellationToken cancellationToken = default)
+        {
+            fixedMedication.Id = 20;
+            return Task.FromResult(fixedMedication);
+        }
+
+        public Task<CitizenFixedMedication> UpdateFixedMedicationAsync(CitizenFixedMedication fixedMedication, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(fixedMedication);
         }
     }
 }

@@ -25,14 +25,21 @@ public class OverlapOverviewServiceTests
         var anna = Assert.Single(result.Citizens, citizen => citizen.CitizenId == 1);
         Assert.Equal("Anna Jensen", anna.CitizenName);
         Assert.Equal(TrafficLight.Grøn, anna.TrafficLight);
-        Assert.Single(anna.Medications);
+        Assert.Equal(2, anna.Medications.Count);
         Assert.Single(anna.SpecialEvents);
         Assert.Equal([5], anna.AssignedEmployeeIds);
+        Assert.Equal("Paracetamol", anna.Medications[0].Name);
+        Assert.True(anna.Medications[0].IsRegistered);
+        Assert.Equal(MedicinType.Fast, anna.Medications[0].MedicinType);
+        Assert.Equal("PN ved behov", anna.Medications[1].Name);
+        Assert.True(anna.Medications[1].IsRegistered);
+        Assert.Equal(MedicinType.PN, anna.Medications[1].MedicinType);
 
         var peter = Assert.Single(result.Citizens, citizen => citizen.CitizenId == 2);
         Assert.Equal("Peter Hansen", peter.CitizenName);
         Assert.Equal(TrafficLight.Gul, peter.TrafficLight);
-        Assert.Empty(peter.Medications);
+        Assert.Single(peter.Medications);
+        Assert.False(peter.Medications[0].IsRegistered);
         Assert.Empty(peter.SpecialEvents);
         Assert.Equal([6], peter.AssignedEmployeeIds);
     }
@@ -83,11 +90,43 @@ public class OverlapOverviewServiceTests
         {
             IReadOnlyList<Citizen> citizens =
             [
-                new Citizen { Id = 1, Name = "Anna Jensen", DepartmentId = 1, TrafficLight = TrafficLight.Grøn, IsActive = true },
-                new Citizen { Id = 2, Name = "Peter Hansen", DepartmentId = 1, TrafficLight = TrafficLight.Gul, IsActive = true }
+                new Citizen { Id = 1, Name = "Anna Jensen", ApartmentNumber = "12A", DepartmentId = 1, TrafficLight = TrafficLight.Grøn, IsActive = true },
+                new Citizen { Id = 2, Name = "Peter Hansen", ApartmentNumber = "14B", DepartmentId = 1, TrafficLight = TrafficLight.Gul, IsActive = true }
             ];
 
             return Task.FromResult(citizens);
+        }
+
+        public Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizensAndShiftTypeAsync(
+            IReadOnlyCollection<int> citizenIds,
+            ShiftType shiftType,
+            CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<CitizenFixedMedication> fixedMedications =
+            [
+                new CitizenFixedMedication
+                {
+                    Id = 50,
+                    CitizenId = 1,
+                    Name = "Paracetamol",
+                    Description = "Fast morgenmedicin",
+                    ScheduledTime = new TimeOnly(8, 0),
+                    ShiftType = ShiftType.Dagvagt,
+                    IsActive = true
+                },
+                new CitizenFixedMedication
+                {
+                    Id = 51,
+                    CitizenId = 2,
+                    Name = "Vitamin D",
+                    Description = "Fast morgenmedicin",
+                    ScheduledTime = new TimeOnly(9, 0),
+                    ShiftType = ShiftType.Dagvagt,
+                    IsActive = true
+                }
+            ];
+
+            return Task.FromResult(fixedMedications);
         }
 
         public Task<IReadOnlyList<MedicinRegistration>> GetMedicationsByShiftAsync(int shiftId, CancellationToken cancellationToken = default)
@@ -100,10 +139,22 @@ public class OverlapOverviewServiceTests
                     CitizenId = 1,
                     ShiftId = 10,
                     MedicinType = MedicinType.Fast,
+                    CitizenFixedMedicationId = 50,
                     Name = "Paracetamol",
                     Description = "Givet efter morgenmad",
                     ScheduledTime = new DateTime(2026, 4, 8, 8, 0, 0),
                     RegistrationTime = new DateTime(2026, 4, 8, 8, 5, 0)
+                },
+                new MedicinRegistration
+                {
+                    Id = 101,
+                    CitizenId = 1,
+                    ShiftId = 10,
+                    MedicinType = MedicinType.PN,
+                    Name = "PN ved behov",
+                    Description = "Givet ved uro",
+                    ScheduledTime = new DateTime(2026, 4, 8, 10, 0, 0),
+                    RegistrationTime = new DateTime(2026, 4, 8, 10, 10, 0)
                 }
             ];
 

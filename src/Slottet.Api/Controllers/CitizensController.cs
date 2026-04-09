@@ -11,10 +11,17 @@ namespace Slottet.Api.Controllers;
 public sealed class CitizensController : ControllerBase
 {
     private readonly ICreateCitizenService _createCitizenService;
+    private readonly ICreateCitizenFixedMedicationService _createCitizenFixedMedicationService;
+    private readonly ICitizenFixedMedicationService _citizenFixedMedicationService;
 
-    public CitizensController(ICreateCitizenService createCitizenService)
+    public CitizensController(
+        ICreateCitizenService createCitizenService,
+        ICreateCitizenFixedMedicationService createCitizenFixedMedicationService,
+        ICitizenFixedMedicationService citizenFixedMedicationService)
     {
         _createCitizenService = createCitizenService;
+        _createCitizenFixedMedicationService = createCitizenFixedMedicationService;
+        _citizenFixedMedicationService = citizenFixedMedicationService;
     }
 
     [HttpGet]
@@ -85,5 +92,82 @@ public sealed class CitizensController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    [HttpPost("{citizenId:int}/fixed-medications")]
+    public async Task<ActionResult<CreateCitizenFixedMedicationResponse>> CreateFixedMedication(
+        int citizenId,
+        [FromBody] CreateCitizenFixedMedicationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _createCitizenFixedMedicationService.CreateAsync(citizenId, request, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                "InvalidRequest" => BadRequest("Navn og gyldig vagttype er paakraevet."),
+                "CitizenNotFound" => NotFound("Borgeren blev ikke fundet."),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        }
+
+        return CreatedAtAction(
+            nameof(CreateFixedMedication),
+            new { citizenId, id = result.FixedMedication!.FixedMedicationId },
+            result.FixedMedication);
+    }
+
+    [HttpGet("{citizenId:int}/fixed-medications")]
+    public async Task<ActionResult<IReadOnlyList<CitizenFixedMedicationDto>>> GetFixedMedications(
+        int citizenId,
+        CancellationToken cancellationToken)
+    {
+        var medications = await _citizenFixedMedicationService.GetByCitizenAsync(citizenId, cancellationToken);
+
+        if (medications is null)
+        {
+            return NotFound("Borgeren blev ikke fundet.");
+        }
+
+        return Ok(medications);
+    }
+
+    [HttpGet("{citizenId:int}/fixed-medications/{fixedMedicationId:int}")]
+    public async Task<ActionResult<CitizenFixedMedicationDto>> GetFixedMedication(
+        int citizenId,
+        int fixedMedicationId,
+        CancellationToken cancellationToken)
+    {
+        var medication = await _citizenFixedMedicationService.GetByIdAsync(citizenId, fixedMedicationId, cancellationToken);
+
+        if (medication is null)
+        {
+            return NotFound("Fast medicin-planen blev ikke fundet.");
+        }
+
+        return Ok(medication);
+    }
+
+    [HttpPut("{citizenId:int}/fixed-medications/{fixedMedicationId:int}")]
+    public async Task<ActionResult<CitizenFixedMedicationDto>> UpdateFixedMedication(
+        int citizenId,
+        int fixedMedicationId,
+        [FromBody] UpdateCitizenFixedMedicationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _citizenFixedMedicationService.UpdateAsync(citizenId, fixedMedicationId, request, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                "InvalidRequest" => BadRequest("Navn og gyldig vagttype er paakraevet."),
+                "FixedMedicationNotFound" => NotFound("Fast medicin-planen blev ikke fundet."),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        }
+
+        return Ok(result.FixedMedication);
     }
 }
