@@ -1,0 +1,535 @@
+@page "/admin/konfiguration"
+@using System.Net
+@using System.Net.Http.Json
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+
+<PageTitle>Konfiguration</PageTitle>
+
+@if (IsAdmin)
+{
+    <section class="config-shell">
+        <header class="config-header">
+            <div>
+                <h1>Konfiguration</h1>
+                <p>Fælles opsætning af systemet.</p>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="alert @(HasValidationError ? "alert-danger" : "alert-success")" role="alert">@StatusMessage</div>
+        }
+
+        <section class="config-card">
+            <div class="config-card-header">
+                <div>
+                    <h2>Vagtkonfiguration</h2>
+                    <p class="config-muted">Nattevagt kan krydse midnat (fx 23:00 til 07:00).</p>
+                </div>
+                <div class="config-actions">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetToDatabaseAsync" disabled="@IsSaving">Nulstil</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveChangesAsync" disabled="@(IsSaving || ShiftRows.Count == 0)">
+                        @(IsSaving ? "Gemmer..." : "Gem ændringer")
+                    </button>
+                </div>
+            </div>
+
+            <h3 class="config-subheading">Tidsintervaller</h3>
+
+            @if (IsLoading)
+            {
+                <p>Indlæser vagtdefinitioner...</p>
+            }
+            else
+            {
+            <div class="config-grid">
+                @for (var index = 0; index < ShiftRows.Count; index++)
+                {
+                    var row = ShiftRows[index];
+                    var rowIndex = index;
+                    <div class="config-row">
+                        <strong>@row.Label</strong>
+                        <div class="config-row-fields">
+                            <label>
+                                <span>Fra</span>
+                                <input type="time" value="@row.StartTimeText" @onchange="args => HandleStartChanged(rowIndex, args)" />
+                            </label>
+                            <label>
+                                <span>Til</span>
+                                <input type="time" value="@row.EndTimeText" @onchange="args => HandleEndChanged(rowIndex, args)" />
+                            </label>
+                        </div>
+                    </div>
+                }
+            </div>
+            }
+        </section>
+    </section>
+}
+
+<style>
+    .config-shell {
+        padding: 2rem 0 3rem;
+        color: #19352c;
+        display: grid;
+        gap: 1rem;
+    }
+
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .config-header h1 {
+        margin: 0;
+    }
+
+    .config-header p {
+        margin: 0.35rem 0 0;
+        color: #5d7469;
+    }
+
+    .config-card {
+        border: 1px solid #d6e2da;
+        border-radius: 1rem;
+        background: #fff;
+        padding: 1rem;
+        box-shadow: 0 8px 20px rgba(34, 63, 50, 0.06);
+    }
+
+    .config-card h2 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    .config-card-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.9rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .config-actions {
+        display: flex;
+        gap: 0.6rem;
+    }
+
+    .config-muted {
+        margin: 0.4rem 0 1rem;
+        color: #60786c;
+    }
+
+    .config-subheading {
+        margin: 0 0 0.75rem;
+        font-size: 0.95rem;
+        color: #2f4f42;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .config-grid {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .config-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        border: 1px solid #e0e9e4;
+        border-radius: 0.75rem;
+        background: #f8fbf9;
+    }
+
+    .config-row-fields {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .config-row label,
+    .config-row span {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #486257;
+    }
+
+    .config-row input {
+        padding: 0.45rem 0.6rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.65rem;
+        background: #fff;
+    }
+
+    @@media (max-width: 640px) {
+        .config-row {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+@code {
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+
+    private List<ShiftConfigRow> ShiftRows { get; set; } = [];
+    private List<ShiftConfigRow> InitialShiftRows { get; set; } = [];
+    private string? StatusMessage { get; set; }
+    private bool HasValidationError { get; set; }
+    private bool IsLoading { get; set; }
+    private bool IsSaving { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsAdmin)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+            return;
+        }
+
+        await LoadShiftDefinitionsAsync();
+    }
+
+    private void HandleStartChanged(int index, ChangeEventArgs args)
+    {
+        if (index < 0 || index >= ShiftRows.Count)
+        {
+            return;
+        }
+
+        var newStart = args.Value?.ToString() ?? string.Empty;
+        ShiftRows[index].StartTimeText = newStart;
+
+        var previousIndex = GetWrappedIndex(index - 1);
+
+        if (previousIndex >= 0)
+        {
+            ShiftRows[previousIndex].EndTimeText = newStart;
+        }
+    }
+
+    private void HandleEndChanged(int index, ChangeEventArgs args)
+    {
+        if (index < 0 || index >= ShiftRows.Count)
+        {
+            return;
+        }
+
+        var newEnd = args.Value?.ToString() ?? string.Empty;
+        ShiftRows[index].EndTimeText = newEnd;
+
+        var nextIndex = GetWrappedIndex(index + 1);
+
+        if (nextIndex >= 0)
+        {
+            ShiftRows[nextIndex].StartTimeText = newEnd;
+        }
+    }
+
+    private int GetWrappedIndex(int rawIndex)
+    {
+        if (ShiftRows.Count == 0)
+        {
+            return -1;
+        }
+
+        var wrapped = rawIndex % ShiftRows.Count;
+
+        if (wrapped < 0)
+        {
+            wrapped += ShiftRows.Count;
+        }
+
+        return wrapped;
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        if (!TryBuildResolvedRows(out var rows, out var validationMessage))
+        {
+            HasValidationError = true;
+            StatusMessage = validationMessage;
+            return;
+        }
+
+        var overlapPair = FindOverlap(rows);
+
+        if (overlapPair is not null)
+        {
+            HasValidationError = true;
+            StatusMessage = $"Intervaller overlapper mellem {overlapPair.Value.First} og {overlapPair.Value.Second}.";
+            return;
+        }
+
+        try
+        {
+            IsSaving = true;
+            HasValidationError = false;
+            StatusMessage = null;
+
+            var client = AuthService.CreateApiClient();
+            var changedRows = ShiftRows
+                .Where(row =>
+                {
+                    var original = InitialShiftRows.FirstOrDefault(initial => initial.Id == row.Id);
+                    return original is null
+                        || !string.Equals(original.StartTimeText, row.StartTimeText, StringComparison.Ordinal)
+                        || !string.Equals(original.EndTimeText, row.EndTimeText, StringComparison.Ordinal)
+                        || original.IsActive != row.IsActive;
+                })
+                .ToList();
+
+            if (changedRows.Count == 0)
+            {
+                StatusMessage = "Ingen ændringer at gemme.";
+                return;
+            }
+
+            var pendingRows = new List<ShiftConfigRow>(changedRows);
+            var progress = true;
+
+            while (pendingRows.Count > 0 && progress)
+            {
+                progress = false;
+                var nextPending = new List<ShiftConfigRow>();
+
+                foreach (var row in pendingRows)
+                {
+                    if (!TimeOnly.TryParse(row.StartTimeText, out var startTime) || !TimeOnly.TryParse(row.EndTimeText, out var endTime))
+                    {
+                        HasValidationError = true;
+                        StatusMessage = $"Kunne ikke gemme {row.Label} pga. ugyldigt tidspunkt.";
+                        return;
+                    }
+
+                    using var response = await client.PutAsJsonAsync(
+                        $"api/shift-definitions/{row.Id}",
+                        new
+                        {
+                            shiftType = row.ShiftType,
+                            startTime,
+                            endTime,
+                            isActive = row.IsActive
+                        });
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        progress = true;
+                        continue;
+                    }
+
+                    var apiMessage = await response.Content.ReadAsStringAsync();
+                    var isScheduleConflict = response.StatusCode == HttpStatusCode.BadRequest
+                        && apiMessage.Contains("overlapper", StringComparison.OrdinalIgnoreCase);
+
+                    if (isScheduleConflict)
+                    {
+                        nextPending.Add(row);
+                        continue;
+                    }
+
+                    HasValidationError = true;
+                    StatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                        ? $"Kunne ikke gemme {row.Label}. HTTP {(int)response.StatusCode}."
+                        : apiMessage;
+                    return;
+                }
+
+                pendingRows = nextPending;
+            }
+
+            if (pendingRows.Count > 0)
+            {
+                HasValidationError = true;
+                StatusMessage = "Kunne ikke gemme alle vagtdefinitioner i gyldig rækkefølge. Prøv igen.";
+                return;
+            }
+
+            HasValidationError = false;
+            StatusMessage = "Vagtdefinitioner er opdateret.";
+            await LoadShiftDefinitionsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            HasValidationError = true;
+            StatusMessage = "Kunne ikke kontakte API'et for vagtdefinitioner.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ResetToDatabaseAsync()
+    {
+        if (IsSaving)
+        {
+            return;
+        }
+
+        await LoadShiftDefinitionsAsync();
+
+        if (!HasValidationError)
+        {
+            StatusMessage = "Værdier genindlæst fra databasen.";
+        }
+    }
+
+    private bool TryBuildResolvedRows(out List<ResolvedShiftRow> rows, out string? error)
+    {
+        rows = new List<ResolvedShiftRow>(ShiftRows.Count);
+
+        foreach (var row in ShiftRows)
+        {
+            if (!TimeOnly.TryParse(row.StartTimeText, out var startTime))
+            {
+                error = $"Ugyldigt starttidspunkt for {row.Label}.";
+                return false;
+            }
+
+            if (!TimeOnly.TryParse(row.EndTimeText, out var endTime))
+            {
+                error = $"Ugyldigt sluttidspunkt for {row.Label}.";
+                return false;
+            }
+
+            if (startTime == endTime)
+            {
+                error = $"{row.Label} kan ikke have samme start- og sluttid.";
+                return false;
+            }
+
+            rows.Add(new ResolvedShiftRow(row.Label, startTime, endTime));
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static (string First, string Second)? FindOverlap(IReadOnlyList<ResolvedShiftRow> rows)
+    {
+        for (var minute = 0; minute < 24 * 60; minute++)
+        {
+            var candidate = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(minute));
+            var matches = rows.Where(entry => TimeInRange(candidate, entry.StartTime, entry.EndTime)).ToList();
+            if (matches.Count > 1)
+            {
+                return (matches[0].Label, matches[1].Label);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TimeInRange(TimeOnly value, TimeOnly start, TimeOnly end)
+    {
+        return start <= end
+            ? value >= start && value < end
+            : value >= start || value < end;
+    }
+
+    private async Task LoadShiftDefinitionsAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            StatusMessage = null;
+            HasValidationError = false;
+
+            var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/shift-definitions");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                HasValidationError = true;
+                StatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke hente vagtdefinitioner."
+                    : apiMessage;
+                ShiftRows = [];
+                InitialShiftRows = [];
+                return;
+            }
+
+            var definitions = await response.Content.ReadFromJsonAsync<List<ShiftDefinitionApiModel>>() ?? [];
+            ShiftRows = definitions
+                .OrderBy(definition => definition.ShiftType)
+                .Select(definition => new ShiftConfigRow(
+                    definition.Id,
+                    definition.ShiftType,
+                    GetShiftTypeLabel(definition.ShiftType),
+                    definition.StartTime.ToString("HH\\:mm"),
+                    definition.EndTime.ToString("HH\\:mm"),
+                    definition.IsActive))
+                .ToList();
+            InitialShiftRows = CloneRows(ShiftRows);
+        }
+        catch (HttpRequestException)
+        {
+            HasValidationError = true;
+            StatusMessage = "Kunne ikke hente vagtdefinitioner fra API'et.";
+            ShiftRows = [];
+            InitialShiftRows = [];
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private static List<ShiftConfigRow> CloneRows(IEnumerable<ShiftConfigRow> source)
+    {
+        return source
+            .Select(row => new ShiftConfigRow(row.Id, row.ShiftType, row.Label, row.StartTimeText, row.EndTimeText, row.IsActive))
+            .ToList();
+    }
+
+    private static string GetShiftTypeLabel(int shiftType)
+    {
+        return shiftType switch
+        {
+            1 => "Dagvagt",
+            2 => "Aftenvagt",
+            3 => "Nattevagt",
+            _ => $"Vagt {shiftType}"
+        };
+    }
+
+    private sealed class ShiftConfigRow
+    {
+        public ShiftConfigRow(int id, int shiftType, string label, string startTimeText, string endTimeText, bool isActive)
+        {
+            Id = id;
+            ShiftType = shiftType;
+            Label = label;
+            StartTimeText = startTimeText;
+            EndTimeText = endTimeText;
+            IsActive = isActive;
+        }
+
+        public int Id { get; }
+        public int ShiftType { get; }
+        public string Label { get; }
+        public string StartTimeText { get; set; }
+        public string EndTimeText { get; set; }
+        public bool IsActive { get; }
+    }
+
+    private sealed record ResolvedShiftRow(string Label, TimeOnly StartTime, TimeOnly EndTime);
+
+    private sealed class ShiftDefinitionApiModel
+    {
+        public int Id { get; set; }
+        public int ShiftType { get; set; }
+        public TimeOnly StartTime { get; set; }
+        public TimeOnly EndTime { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

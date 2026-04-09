@@ -62,9 +62,21 @@ main {
 }
 
 .admin-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 0.75rem 1rem;
+    height: 100%;
+}
+
+.admin-nav-main,
+.admin-nav-bottom {
     display: grid;
     gap: 0.35rem;
-    padding: 1rem 0.75rem 1rem;
+}
+
+.admin-nav-bottom {
+    margin-top: auto;
+    padding-top: 0.75rem;
 }
 
 .admin-nav-hidden {

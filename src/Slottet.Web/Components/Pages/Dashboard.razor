@@ -57,6 +57,21 @@
                         <h2>@citizen.CitizenName</h2>
                     </header>
 
+                    <div class="overlap-card-body">
+                        <p class="overlap-card-line">
+                            <span>Medicin</span>
+                            <strong>@citizen.RegisteredMedications/@citizen.TotalMedications</strong>
+                        </p>
+                        <p class="overlap-card-line">
+                            <span>Næste</span>
+                            <strong>@citizen.NextMedicationLabel</strong>
+                        </p>
+                        <p class="overlap-card-line">
+                            <span>Hændelser</span>
+                            <strong>@citizen.SpecialEventsCount</strong>
+                        </p>
+                    </div>
+
                     <div class="overlap-card-spacer"></div>
 
                     <div class="overlap-card-bottom-row">
@@ -78,13 +93,13 @@
                         </div>
 
                         <div class="overlap-card-actions">
-                        <button type="button"
-                                class="overlap-expand-button"
-                                @onclick="() => OpenCitizenModal(citizen)">
-                            <span aria-hidden="true">↗</span>
-                            <span class="visually-hidden">Åbn @citizen.CitizenName</span>
-                        </button>
-                    </div>
+                            <button type="button"
+                                    class="overlap-expand-button"
+                                    @onclick="() => OpenCitizenModal(citizen.CitizenId)">
+                                <span aria-hidden="true">↗</span>
+                                <span class="visually-hidden">Åbn @citizen.CitizenName</span>
+                            </button>
+                        </div>
                     </div>
                 </section>
             }
@@ -95,40 +110,113 @@
 @if (SelectedCitizen is not null)
 {
     <div class="modal fade show d-block overlap-modal-backdrop" tabindex="-1" aria-modal="true" role="dialog">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content overlap-modal">
                 <div class="modal-header overlap-modal-header">
                     <div>
                         <p class="overlap-modal-apartment">Lejlighed @SelectedCitizen.ApartmentNumber</p>
                         <h2 class="modal-title h4 mb-0">@SelectedCitizen.CitizenName</h2>
                     </div>
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseCitizenModal"></button>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseCitizenModal" disabled="@IsSaving"></button>
                 </div>
 
                 <div class="modal-body overlap-modal-body">
-                    <div class="overlap-modal-indicator-row">
-                        <span class="overlap-modal-label">Lyskrydsstatus</span>
-                        <span class="overlap-modal-indicator @GetTrafficLightClass(SelectedCitizen.TrafficLight)"></span>
-                    </div>
+                    @if (!string.IsNullOrWhiteSpace(SaveErrorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">@SaveErrorMessage</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(SaveSuccessMessage))
+                    {
+                        <div class="alert alert-success" role="alert">@SaveSuccessMessage</div>
+                    }
 
-                    <div class="overlap-modal-field">
-                        <label for="traffic-light-select">Skift status</label>
-                        <InputSelect TValue="int"
-                                     id="traffic-light-select"
-                                     class="form-select"
-                                     Value="SelectedCitizen.TrafficLight"
-                                     ValueChanged="@(value => HandleSelectedCitizenTrafficLightChanged(value))"
-                                     ValueExpression="() => SelectedCitizen.TrafficLight">
-                            @foreach (var option in TrafficLightOptions)
+                    <section class="overlap-modal-section">
+                        <div class="overlap-modal-indicator-row">
+                            <span class="overlap-modal-label">Lyskrydsstatus</span>
+                            <span class="overlap-modal-indicator @GetTrafficLightClass(SelectedCitizen.TrafficLight)"></span>
+                        </div>
+                        <div class="overlap-modal-field">
+                            <label for="traffic-light-select">Skift status</label>
+                            <InputSelect TValue="int"
+                                         id="traffic-light-select"
+                                         class="form-select"
+                                         Value="SelectedCitizen.TrafficLight"
+                                         ValueChanged="HandleSelectedCitizenTrafficLightChanged"
+                                         ValueExpression="() => SelectedCitizen.TrafficLight"
+                                         disabled="@(!CanEditTrafficLight || IsSaving)">
+                                @foreach (var option in TrafficLightOptions)
+                                {
+                                    <option value="@option.Value">@option.Label</option>
+                                }
+                            </InputSelect>
+                            @if (!CanEditTrafficLight)
                             {
-                                <option value="@option.Value">@option.Label</option>
+                                <small class="text-muted">Kun admin kan gemme ændring af lyskrydsstatus.</small>
                             }
-                        </InputSelect>
-                    </div>
+                        </div>
+                    </section>
+
+                    <section class="overlap-modal-section">
+                        <h3 class="overlap-modal-section-title">Medicin</h3>
+                        @if (SelectedCitizen.Medications.Count == 0)
+                        {
+                            <p class="mb-0">Ingen medicin på denne vagt.</p>
+                        }
+                        else
+                        {
+                            <div class="overlap-medication-list">
+                                @for (var index = 0; index < SelectedCitizen.Medications.Count; index++)
+                                {
+                                    var medication = SelectedCitizen.Medications[index];
+                                    var inputId = $"medication-{medication.FixedMedicationId}-{index}";
+
+                                    <label class="overlap-medication-item @(medication.IsRegistered ? "done" : string.Empty)" for="@inputId">
+                                        <input id="@inputId"
+                                               type="checkbox"
+                                               checked="@medication.IsRegistered"
+                                               disabled="@(IsSaving || medication.InitiallyRegistered || !CanRegisterMedication)"
+                                               @onchange="args => HandleMedicationRegistrationToggle(index, args)" />
+                                        <div>
+                                            <strong>@medication.Name</strong>
+                                            <p>@medication.Description</p>
+                                            <small>@FormatMedicationLine(medication)</small>
+                                        </div>
+                                    </label>
+                                }
+                            </div>
+                        }
+                        @if (!CanRegisterMedication)
+                        {
+                            <small class="text-muted">Din rolle kan ikke gemme medicinregistreringer.</small>
+                        }
+                    </section>
+
+                    <section class="overlap-modal-section">
+                        <h3 class="overlap-modal-section-title">Særlige hændelser</h3>
+                        @if (SelectedCitizen.SpecialEvents.Count == 0)
+                        {
+                            <p class="mb-0">Ingen hændelser på denne vagt.</p>
+                        }
+                        else
+                        {
+                            <ul class="overlap-event-list">
+                                @foreach (var specialEvent in SelectedCitizen.SpecialEvents.OrderByDescending(item => item.EventTime))
+                                {
+                                    <li>
+                                        <strong>@specialEvent.EventTime.ToString("dd-MM HH:mm")</strong>
+                                        <span>@specialEvent.Description</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCitizenModal">Luk</button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCitizenModal" disabled="@IsSaving">Luk</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveSelectedCitizenChangesAsync" disabled="@IsSaving">
+                        @(IsSaving ? "Opdaterer..." : "Opdater")
+                    </button>
                 </div>
             </div>
         </div>
@@ -183,17 +271,6 @@
         color: #597166;
     }
 
-    .overlap-status-card {
-        padding: 1.2rem 1.3rem;
-        border: 1px solid #d5e1da;
-        border-radius: 1.1rem;
-        background: #f8fbf9;
-    }
-
-    .overlap-status-card p {
-        margin: 0;
-    }
-
     .overlap-toolbar {
         display: flex;
         gap: 1rem;
@@ -207,10 +284,6 @@
         font-weight: 700;
     }
 
-    .overlap-filter span {
-        font-size: 0.9rem;
-    }
-
     .overlap-filter input {
         padding: 0.75rem 0.9rem;
         border: 1px solid #bfd1c4;
@@ -219,17 +292,28 @@
         color: #173126;
     }
 
+    .overlap-status-card {
+        padding: 1.2rem 1.3rem;
+        border: 1px solid #d5e1da;
+        border-radius: 1.1rem;
+        background: #f8fbf9;
+    }
+
+    .overlap-status-card p {
+        margin: 0;
+    }
+
     .overlap-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(290px, 290px));
+        grid-template-columns: repeat(auto-fit, minmax(320px, 320px));
         gap: 1rem;
         align-items: start;
     }
 
     .overlap-card {
         position: relative;
-        width: 290px;
-        height: 220px;
+        width: 320px;
+        height: 270px;
         padding: 1rem;
         border: 1px solid #d8e2dc;
         border-radius: 1rem;
@@ -287,12 +371,29 @@
         line-height: 1.2;
     }
 
-    .overlap-card-spacer {
-        flex: 1;
+    .overlap-card-body {
+        margin-top: 0.8rem;
+        display: grid;
+        gap: 0.35rem;
     }
 
-    .overlap-card-employees {
-        min-width: 0;
+    .overlap-card-line {
+        margin: 0;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        color: #3c584d;
+    }
+
+    .overlap-card-line strong {
+        color: #19352c;
+        max-width: 60%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .overlap-card-spacer {
         flex: 1;
     }
 
@@ -303,6 +404,11 @@
         margin-top: 0.75rem;
         padding-top: 0.7rem;
         border-top: 1px solid #dde6e1;
+    }
+
+    .overlap-card-employees {
+        min-width: 0;
+        flex: 1;
     }
 
     .overlap-card-employees-label {
@@ -383,6 +489,19 @@
         gap: 1rem;
     }
 
+    .overlap-modal-section {
+        border: 1px solid #d7e1db;
+        border-radius: 0.8rem;
+        padding: 0.8rem;
+        display: grid;
+        gap: 0.8rem;
+    }
+
+    .overlap-modal-section-title {
+        margin: 0;
+        font-size: 1rem;
+    }
+
     .overlap-modal-indicator-row {
         display: flex;
         align-items: center;
@@ -407,10 +526,56 @@
         color: #365246;
     }
 
-    @@media (max-width: 640px) {
+    .overlap-medication-list {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .overlap-medication-item {
+        display: grid;
+        grid-template-columns: 1.2rem minmax(0, 1fr);
+        gap: 0.7rem;
+        align-items: start;
+        padding: 0.65rem;
+        border-radius: 0.65rem;
+        background: #f6faf8;
+        border: 1px solid #dbe6e0;
+    }
+
+    .overlap-medication-item.done {
+        background: #edf6f0;
+    }
+
+    .overlap-medication-item p {
+        margin: 0.2rem 0;
+        color: #4f6a5f;
+        font-size: 0.85rem;
+    }
+
+    .overlap-medication-item small {
+        color: #6b8278;
+        font-size: 0.78rem;
+    }
+
+    .overlap-event-list {
+        margin: 0;
+        padding-left: 1rem;
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .overlap-event-list li {
+        display: grid;
+        gap: 0.1rem;
+    }
+
+    .overlap-event-list span {
+        color: #4f6a5f;
+    }
+
+    @@media (max-width: 840px) {
         .overlap-grid {
-            grid-template-columns: 1fr;
-            justify-items: stretch;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
 
         .overlap-card {
@@ -434,12 +599,17 @@
     ];
 
     private CitizenOverviewResponse? Overview { get; set; }
-    private CitizenAssignmentBoardResponse? AssignmentBoard { get; set; }
     private List<CitizenCardModel> CitizenCards { get; set; } = [];
-    private CitizenCardModel? SelectedCitizen { get; set; }
+    private CitizenDetailModel? SelectedCitizen { get; set; }
     private string? LoadErrorMessage { get; set; }
+    private string? SaveErrorMessage { get; set; }
+    private string? SaveSuccessMessage { get; set; }
     private bool IsLoading { get; set; }
+    private bool IsSaving { get; set; }
     private DateTime SelectedDate { get; set; } = DateTime.Today;
+
+    private bool CanEditTrafficLight => AuthService.CurrentUser?.Role == "Admin";
+    private bool CanRegisterMedication => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
 
     protected override void OnInitialized()
     {
@@ -471,23 +641,14 @@
     {
         if (!AuthService.IsAuthenticated)
         {
-            Overview = null;
-            AssignmentBoard = null;
-            CitizenCards = [];
-            SelectedCitizen = null;
-            LoadErrorMessage = null;
-            IsLoading = false;
+            ResetState();
             return;
         }
 
         if (!DepartmentIds.TryGetValue(AuthService.SelectedDepartment, out var departmentId))
         {
-            Overview = null;
-            AssignmentBoard = null;
-            CitizenCards = [];
-            SelectedCitizen = null;
-            LoadErrorMessage = "Den valgte afdeling eller vagt kunne ikke oversættes til en gyldig overlapvisning.";
-            IsLoading = false;
+            ResetState();
+            LoadErrorMessage = "Den valgte afdeling kunne ikke oversættes til en gyldig overlapvisning.";
             return;
         }
 
@@ -497,51 +658,35 @@
             LoadErrorMessage = null;
 
             using var client = AuthService.CreateApiClient();
-            using var boardResponse = await client.GetAsync($"api/overlap/departments/{departmentId}/assignments?date={SelectedDate:yyyy-MM-dd}");
-
-            if (boardResponse.StatusCode == HttpStatusCode.NotFound)
-            {
-                Overview = null;
-                AssignmentBoard = null;
-                CitizenCards = [];
-                SelectedCitizen = null;
-                LoadErrorMessage = "Borgerfordelingen for den valgte dato kunne ikke hentes.";
-                return;
-            }
-
-            if (!boardResponse.IsSuccessStatusCode)
-            {
-                Overview = null;
-                AssignmentBoard = null;
-                CitizenCards = [];
-                SelectedCitizen = null;
-                LoadErrorMessage = "Medarbejdertildelingerne for den valgte dato kunne ikke hentes.";
-                return;
-            }
-
-            AssignmentBoard = await boardResponse.Content.ReadFromJsonAsync<CitizenAssignmentBoardResponse>();
             var shiftType = ResolveShiftType(AuthService.SelectedShift);
+            using var shiftResponse = await client.GetAsync(
+                $"api/shifts/resolve?departmentId={departmentId}&date={SelectedDate:yyyy-MM-dd}&shiftType={shiftType}");
 
-            if (AssignmentBoard?.Citizens.Count is 0)
+            if (shiftResponse.StatusCode == HttpStatusCode.NotFound)
             {
+                ResetState();
+                LoadErrorMessage = "Vagten blev ikke fundet for den valgte dato.";
+                return;
+            }
+
+            if (!shiftResponse.IsSuccessStatusCode)
+            {
+                ResetState();
+                LoadErrorMessage = "Kunne ikke finde vagt-id for den valgte dato.";
+                return;
+            }
+
+            var resolvedShift = await shiftResponse.Content.ReadFromJsonAsync<ShiftLookupResponse>();
+            var shiftId = resolvedShift?.ShiftId;
+
+            if (shiftId is null)
+            {
+                ResetState();
                 Overview = new CitizenOverviewResponse
                 {
                     ShiftDate = SelectedDate,
                     Citizens = []
                 };
-                CitizenCards = [];
-                SelectedCitizen = null;
-                return;
-            }
-
-            var shiftId = GetShiftIdForSelectedShift(AssignmentBoard, shiftType);
-
-            if (shiftId is null)
-            {
-                Overview = null;
-                CitizenCards = [];
-                SelectedCitizen = null;
-                LoadErrorMessage = "Der blev ikke fundet en vagt for den valgte dato og vagt-type.";
                 return;
             }
 
@@ -549,40 +694,30 @@
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                Overview = null;
-                CitizenCards = [];
-                SelectedCitizen = null;
+                ResetState();
                 LoadErrorMessage = "Der findes endnu ikke overlapdata for den valgte afdeling og vagt.";
                 return;
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                Overview = null;
-                CitizenCards = [];
-                SelectedCitizen = null;
+                ResetState();
                 LoadErrorMessage = "Overlapssystemet kunne ikke hente borgeroversigten.";
                 return;
             }
 
             Overview = await response.Content.ReadFromJsonAsync<CitizenOverviewResponse>();
-            CitizenCards = BuildCitizenCards(Overview, AssignmentBoard);
+            CitizenCards = BuildCitizenCards(Overview);
             SelectedCitizen = null;
         }
         catch (TaskCanceledException)
         {
-            Overview = null;
-            AssignmentBoard = null;
-            CitizenCards = [];
-            SelectedCitizen = null;
+            ResetState();
             LoadErrorMessage = "Indlæsning af overlapssystemet tog for lang tid. Prøv igen.";
         }
         catch (HttpRequestException)
         {
-            Overview = null;
-            AssignmentBoard = null;
-            CitizenCards = [];
-            SelectedCitizen = null;
+            ResetState();
             LoadErrorMessage = "Kunne ikke hente overlapssystemet fra API'et.";
         }
         finally
@@ -590,41 +725,6 @@
             IsLoading = false;
             await InvokeAsync(StateHasChanged);
         }
-    }
-
-    private void OpenCitizenModal(CitizenCardModel citizen)
-    {
-        SelectedCitizen = new CitizenCardModel
-        {
-            CitizenId = citizen.CitizenId,
-            CitizenName = citizen.CitizenName,
-            ApartmentNumber = citizen.ApartmentNumber,
-            TrafficLight = citizen.TrafficLight
-        };
-    }
-
-    private void CloseCitizenModal()
-    {
-        SelectedCitizen = null;
-    }
-
-    private Task HandleSelectedCitizenTrafficLightChanged(int trafficLight)
-    {
-        if (SelectedCitizen is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        SelectedCitizen.TrafficLight = trafficLight;
-
-        var card = CitizenCards.FirstOrDefault(citizen => citizen.CitizenId == SelectedCitizen.CitizenId);
-
-        if (card is not null)
-        {
-            card.TrafficLight = trafficLight;
-        }
-
-        return Task.CompletedTask;
     }
 
     private async Task HandleDateChangedAsync(ChangeEventArgs args)
@@ -638,42 +738,255 @@
         await LoadOverviewAsync();
     }
 
-    private List<CitizenCardModel> BuildCitizenCards(CitizenOverviewResponse? overview, CitizenAssignmentBoardResponse? assignmentBoard)
+    private void OpenCitizenModal(int citizenId)
+    {
+        var sourceCitizen = Overview?.Citizens.FirstOrDefault(citizen => citizen.CitizenId == citizenId);
+
+        if (sourceCitizen is null)
+        {
+            return;
+        }
+
+        SaveErrorMessage = null;
+        SaveSuccessMessage = null;
+
+        SelectedCitizen = new CitizenDetailModel
+        {
+            CitizenId = sourceCitizen.CitizenId,
+            CitizenName = sourceCitizen.CitizenName,
+            ApartmentNumber = sourceCitizen.ApartmentNumber,
+            TrafficLight = sourceCitizen.TrafficLight,
+            OriginalTrafficLight = sourceCitizen.TrafficLight,
+            Medications = sourceCitizen.Medications
+                .OrderBy(medication => medication.ScheduledTime)
+                .ThenBy(medication => medication.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(medication => new MedicationItemModel
+                {
+                    FixedMedicationId = medication.FixedMedicationId,
+                    MedicationRegistrationId = medication.MedicationRegistrationId,
+                    MedicinType = medication.MedicinType,
+                    Name = medication.Name,
+                    Description = medication.Description,
+                    ScheduledTime = medication.ScheduledTime,
+                    RegistrationTime = medication.RegistrationTime,
+                    IsRegistered = medication.IsRegistered,
+                    InitiallyRegistered = medication.IsRegistered
+                })
+                .ToList(),
+            SpecialEvents = sourceCitizen.SpecialEvents
+                .OrderByDescending(specialEvent => specialEvent.EventTime)
+                .Select(specialEvent => new SpecialEventItemModel
+                {
+                    Id = specialEvent.Id,
+                    Description = specialEvent.Description,
+                    EventTime = specialEvent.EventTime
+                })
+                .ToList()
+        };
+    }
+
+    private void CloseCitizenModal()
+    {
+        if (IsSaving)
+        {
+            return;
+        }
+
+        SelectedCitizen = null;
+        SaveErrorMessage = null;
+        SaveSuccessMessage = null;
+    }
+
+    private Task HandleSelectedCitizenTrafficLightChanged(int trafficLight)
+    {
+        if (SelectedCitizen is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        SelectedCitizen.TrafficLight = trafficLight;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleMedicationRegistrationToggle(int index, ChangeEventArgs args)
+    {
+        if (SelectedCitizen is null || index < 0 || index >= SelectedCitizen.Medications.Count)
+        {
+            return Task.CompletedTask;
+        }
+
+        var medication = SelectedCitizen.Medications[index];
+        var isChecked = args.Value as bool? ?? string.Equals(args.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+
+        if (medication.InitiallyRegistered)
+        {
+            medication.IsRegistered = true;
+            return Task.CompletedTask;
+        }
+
+        medication.IsRegistered = isChecked;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveSelectedCitizenChangesAsync()
+    {
+        if (SelectedCitizen is null || Overview is null || !DepartmentIds.TryGetValue(AuthService.SelectedDepartment, out var departmentId))
+        {
+            return;
+        }
+
+        SaveErrorMessage = null;
+        SaveSuccessMessage = null;
+        IsSaving = true;
+
+        var errors = new List<string>();
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+
+            if (SelectedCitizen.TrafficLight != SelectedCitizen.OriginalTrafficLight)
+            {
+                if (!CanEditTrafficLight)
+                {
+                    errors.Add("Lyskrydsstatus kan kun gemmes af admin.");
+                }
+                else
+                {
+                    using var citizenUpdateResponse = await client.PutAsJsonAsync(
+                        $"api/citizens/{SelectedCitizen.CitizenId}",
+                        new
+                        {
+                            name = SelectedCitizen.CitizenName,
+                            apartmentNumber = SelectedCitizen.ApartmentNumber,
+                            trafficLight = SelectedCitizen.TrafficLight,
+                            departmentId,
+                            isActive = true
+                        });
+
+                    if (!citizenUpdateResponse.IsSuccessStatusCode)
+                    {
+                        errors.Add("Kunne ikke gemme lyskrydsstatus.");
+                    }
+                }
+            }
+
+            var newMedicationRegistrations = SelectedCitizen.Medications
+                .Where(medication => !medication.InitiallyRegistered && medication.IsRegistered)
+                .ToList();
+
+            foreach (var medication in newMedicationRegistrations)
+            {
+                if (!CanRegisterMedication)
+                {
+                    errors.Add("Din rolle kan ikke gemme medicinregistreringer.");
+                    break;
+                }
+
+                if (Overview.ShiftId <= 0)
+                {
+                    errors.Add("Vagt-id mangler. Kunne ikke gemme medicinregistrering.");
+                    break;
+                }
+
+                using var medicationResponse = await client.PostAsJsonAsync(
+                    $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/medication-registrations",
+                    new
+                    {
+                        medicinType = medication.MedicinType,
+                        citizenFixedMedicationId = medication.FixedMedicationId,
+                        name = medication.Name,
+                        description = medication.Description,
+                        scheduledTime = medication.ScheduledTime,
+                        registrationTime = DateTime.UtcNow
+                    });
+
+                if (!medicationResponse.IsSuccessStatusCode)
+                {
+                    errors.Add($"Kunne ikke gemme medicinregistrering for {medication.Name}.");
+                    break;
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                SaveErrorMessage = string.Join(" ", errors.Distinct(StringComparer.OrdinalIgnoreCase));
+                return;
+            }
+
+            SaveSuccessMessage = "Ændringerne er opdateret.";
+            await LoadOverviewAsync();
+            SelectedCitizen = null;
+        }
+        catch (TaskCanceledException)
+        {
+            SaveErrorMessage = "Opdatering tog for lang tid. Prøv igen.";
+        }
+        catch (HttpRequestException)
+        {
+            SaveErrorMessage = "Kunne ikke opdatere data via API'et.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void ResetState()
+    {
+        Overview = null;
+        CitizenCards = [];
+        SelectedCitizen = null;
+        LoadErrorMessage = null;
+    }
+
+    private List<CitizenCardModel> BuildCitizenCards(CitizenOverviewResponse? overview)
     {
         if (overview?.Citizens is null)
         {
             return [];
         }
 
-        var shiftType = ResolveShiftType(AuthService.SelectedShift);
-        var employeeNamesById = (assignmentBoard?.Employees ?? [])
-            .ToDictionary(employee => employee.EmployeeId, employee => employee.Name);
-
-        var employeesByCitizenId = (assignmentBoard?.Citizens ?? [])
-            .ToDictionary(
-                citizen => citizen.CitizenId,
-                citizen => citizen.Shifts
-                    .FirstOrDefault(shift => shift.ShiftType == shiftType)?
-                    .AssignedEmployeeIds
-                    .Where(employeeNamesById.ContainsKey)
-                    .Select(employeeId => employeeNamesById[employeeId])
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-                    .ToList() ?? []);
-
         return overview.Citizens
             .OrderBy(citizen => GetApartmentSortValue(citizen.ApartmentNumber))
             .ThenBy(citizen => citizen.ApartmentNumber, StringComparer.OrdinalIgnoreCase)
             .ThenBy(citizen => citizen.CitizenName, StringComparer.OrdinalIgnoreCase)
-            .Select(citizen => new CitizenCardModel
+            .Select(citizen =>
             {
-                CitizenId = citizen.CitizenId,
-                CitizenName = citizen.CitizenName,
-                TrafficLight = citizen.TrafficLight,
-                ApartmentNumber = citizen.ApartmentNumber,
-                EmployeeNames = employeesByCitizenId.GetValueOrDefault(citizen.CitizenId) ?? []
+                var registeredCount = citizen.Medications.Count(medication => medication.IsRegistered);
+                var nextMedication = citizen.Medications
+                    .OrderBy(medication => medication.ScheduledTime)
+                    .FirstOrDefault();
+
+                return new CitizenCardModel
+                {
+                    CitizenId = citizen.CitizenId,
+                    CitizenName = citizen.CitizenName,
+                    TrafficLight = citizen.TrafficLight,
+                    ApartmentNumber = citizen.ApartmentNumber,
+                    EmployeeNames = citizen.AssignedEmployees
+                        .OrderBy(employee => employee.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(employee => employee.Name)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    RegisteredMedications = registeredCount,
+                    TotalMedications = citizen.Medications.Count,
+                    NextMedicationLabel = nextMedication is null
+                        ? "-"
+                        : $"{nextMedication.ScheduledTime:HH:mm} {nextMedication.Name}",
+                    SpecialEventsCount = citizen.SpecialEvents.Count
+                };
             })
             .ToList();
+    }
+
+    private static string FormatMedicationLine(MedicationItemModel medication)
+    {
+        var planned = medication.ScheduledTime.ToString("HH:mm");
+        var status = medication.IsRegistered
+            ? $"Registreret {medication.RegistrationTime?.ToString("HH:mm") ?? string.Empty}".Trim()
+            : "Ikke registreret";
+        return $"{planned} • {status}";
     }
 
     private static int ResolveShiftType(string selectedShift)
@@ -685,15 +998,6 @@
             "Nat" => 3,
             _ => 1
         };
-    }
-
-    private static int? GetShiftIdForSelectedShift(CitizenAssignmentBoardResponse? assignmentBoard, int shiftType)
-    {
-        return assignmentBoard?.Citizens
-            .SelectMany(citizen => citizen.Shifts)
-            .Where(shift => shift.ShiftType == shiftType)
-            .Select(shift => (int?)shift.ShiftId)
-            .FirstOrDefault();
     }
 
     private static int GetApartmentSortValue(string apartmentNumber)
@@ -729,8 +1033,23 @@
 
     private sealed class CitizenOverviewResponse
     {
+        public int DepartmentId { get; set; }
+        public string DepartmentName { get; set; } = string.Empty;
+        public int ShiftId { get; set; }
         public DateTime ShiftDate { get; set; }
-        public List<CitizenCardModel> Citizens { get; set; } = [];
+        public int ShiftType { get; set; }
+        public List<CitizenOverviewItem> Citizens { get; set; } = [];
+    }
+
+    private sealed class CitizenOverviewItem
+    {
+        public int CitizenId { get; set; }
+        public string CitizenName { get; set; } = string.Empty;
+        public int TrafficLight { get; set; }
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public List<MedicationItemModel> Medications { get; set; } = [];
+        public List<SpecialEventItemModel> SpecialEvents { get; set; } = [];
+        public List<AssignedEmployeeModel> AssignedEmployees { get; set; } = [];
     }
 
     private sealed class CitizenCardModel
@@ -740,31 +1059,54 @@
         public int TrafficLight { get; set; }
         public string ApartmentNumber { get; set; } = string.Empty;
         public List<string> EmployeeNames { get; set; } = [];
+        public int RegisteredMedications { get; set; }
+        public int TotalMedications { get; set; }
+        public string NextMedicationLabel { get; set; } = "-";
+        public int SpecialEventsCount { get; set; }
     }
 
-    private sealed class CitizenAssignmentBoardResponse
+    private sealed class CitizenDetailModel
     {
-        public DateTime Date { get; set; }
-        public List<EmployeeReference> Employees { get; set; } = [];
-        public List<CitizenAssignmentBoardCitizen> Citizens { get; set; } = [];
+        public int CitizenId { get; set; }
+        public string CitizenName { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public int TrafficLight { get; set; }
+        public int OriginalTrafficLight { get; set; }
+        public List<MedicationItemModel> Medications { get; set; } = [];
+        public List<SpecialEventItemModel> SpecialEvents { get; set; } = [];
     }
 
-    private sealed class EmployeeReference
+    private sealed class MedicationItemModel
+    {
+        public int? FixedMedicationId { get; set; }
+        public int? MedicationRegistrationId { get; set; }
+        public int MedicinType { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public DateTime ScheduledTime { get; set; }
+        public DateTime? RegistrationTime { get; set; }
+        public bool IsRegistered { get; set; }
+        public bool InitiallyRegistered { get; set; }
+    }
+
+    private sealed class SpecialEventItemModel
+    {
+        public int Id { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public DateTime EventTime { get; set; }
+    }
+
+    private sealed class ShiftLookupResponse
+    {
+        public int ShiftId { get; set; }
+        public int DepartmentId { get; set; }
+        public DateTime Date { get; set; }
+        public int ShiftType { get; set; }
+    }
+
+    private sealed class AssignedEmployeeModel
     {
         public int EmployeeId { get; set; }
         public string Name { get; set; } = string.Empty;
-    }
-
-    private sealed class CitizenAssignmentBoardCitizen
-    {
-        public int CitizenId { get; set; }
-        public List<CitizenAssignmentBoardShift> Shifts { get; set; } = [];
-    }
-
-    private sealed class CitizenAssignmentBoardShift
-    {
-        public int ShiftId { get; set; }
-        public int ShiftType { get; set; }
-        public List<int> AssignedEmployeeIds { get; set; } = [];
     }
 }
