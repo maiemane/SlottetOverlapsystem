@@ -34,6 +34,11 @@ public sealed class OverlapOverviewService : IOverlapOverviewService
         var medications = await _overlapOverviewRepository.GetMedicationsByShiftAsync(shiftId, cancellationToken);
         var specialEvents = await _overlapOverviewRepository.GetSpecialEventsByShiftAsync(shiftId, cancellationToken);
         var assignments = await _overlapOverviewRepository.GetCitizenAssignmentsByShiftAsync(shiftId, cancellationToken);
+        var assignedEmployeeIds = assignments
+            .Select(assignment => assignment.EmployeeId)
+            .Distinct()
+            .ToList();
+        var employees = await _overlapOverviewRepository.GetEmployeesByIdsAsync(assignedEmployeeIds, cancellationToken);
 
         var citizenItems = citizens
             .OrderBy(citizen => citizen.Name)
@@ -54,11 +59,19 @@ public sealed class OverlapOverviewService : IOverlapOverviewService
                         EventTime = specialEvent.EventTime
                     })
                     .ToList(),
-                AssignedEmployeeIds = assignments
+                AssignedEmployees = assignments
                     .Where(assignment => assignment.CitizenId == citizen.Id)
-                    .Select(assignment => assignment.EmployeeId)
-                    .Distinct()
-                    .OrderBy(employeeId => employeeId)
+                    .Join(
+                        employees,
+                        assignment => assignment.EmployeeId,
+                        employee => employee.Id,
+                        (assignment, employee) => new AssignedEmployeeDto
+                        {
+                            EmployeeId = employee.Id,
+                            Name = employee.Name
+                        })
+                    .DistinctBy(employee => employee.EmployeeId)
+                    .OrderBy(employee => employee.Name)
                     .ToList()
             })
             .ToList();

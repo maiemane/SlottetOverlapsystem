@@ -35,20 +35,5 @@ public sealed class OverlapController : ControllerBase
 
         return Ok(overview);
     }
-
-    [HttpGet("departments/{departmentId:int}/assignments")]
-    public async Task<ActionResult<CitizenAssignmentBoardDto>> GetCitizenAssignments(
-        int departmentId,
-        [FromQuery] DateTime date,
-        CancellationToken cancellationToken)
-    {
-        var board = await _staffAllocationService.GetCitizenAssignmentBoardAsync(departmentId, date, cancellationToken);
-
-        if (board is null)
-        {
-            return NotFound("Afdelingen blev ikke fundet.");
-        }
-
-        return Ok(board);
-    }
+    
 }

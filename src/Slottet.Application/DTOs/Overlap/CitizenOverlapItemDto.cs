@@ -10,5 +10,5 @@ public sealed class CitizenOverlapItemDto
     public string ApartmentNumber { get; set; } = string.Empty;
     public List<CitizenMedicationDto> Medications { get; set; } = [];
     public List<CitizenSpecialEventDto> SpecialEvents { get; set; } = [];
-    public List<int> AssignedEmployeeIds { get; set; } = [];
+    public List<AssignedEmployeeDto> AssignedEmployees { get; set; } = [];
 }
