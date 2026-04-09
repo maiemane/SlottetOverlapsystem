@@ -24,6 +24,55 @@
         <section class="config-card">
             <div class="config-card-header">
                 <div>
+                    <h2>Disclaimer bar</h2>
+                    <p class="config-muted">Teksten vises i toppen af siden og afhænger af valgt afdeling.</p>
+                </div>
+                <div class="config-actions">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetDisclaimersAsync" disabled="@(IsSavingDisclaimers || IsLoadingDisclaimers)">Nulstil</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveDisclaimersAsync" disabled="@(IsSavingDisclaimers || IsLoadingDisclaimers)">
+                        @(IsSavingDisclaimers ? "Gemmer..." : "Gem disclaimer")
+                    </button>
+                </div>
+            </div>
+
+            @if (IsLoadingDisclaimers)
+            {
+                <p>Indlæser afdelingsbeskeder...</p>
+            }
+            else
+            {
+                <div class="config-grid">
+                    <div class="config-row config-row-disclaimer">
+                        <label class="config-textarea-label" for="slottet-disclaimer">
+                            <span>Slottet disclaimer</span>
+                        </label>
+                        <textarea
+                            id="slottet-disclaimer"
+                            class="config-textarea"
+                            rows="3"
+                            @bind="SlottetDisclaimerText"
+                            @bind:event="oninput"
+                            placeholder="Skriv disclaimer for Slottet..."></textarea>
+                    </div>
+                    <div class="config-row config-row-disclaimer">
+                        <label class="config-textarea-label" for="skoven-disclaimer">
+                            <span>Skoven disclaimer</span>
+                        </label>
+                        <textarea
+                            id="skoven-disclaimer"
+                            class="config-textarea"
+                            rows="3"
+                            @bind="SkovenDisclaimerText"
+                            @bind:event="oninput"
+                            placeholder="Skriv disclaimer for Skoven..."></textarea>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <section class="config-card">
+            <div class="config-card-header">
+                <div>
                     <h2>Vagtkonfiguration</h2>
                     <p class="config-muted">Nattevagt kan krydse midnat (fx 23:00 til 07:00).</p>
                 </div>
@@ -168,6 +217,27 @@
         background: #fff;
     }
 
+    .config-row-disclaimer {
+        display: grid;
+        gap: 0.45rem;
+        align-items: stretch;
+    }
+
+    .config-textarea-label {
+        display: flex;
+    }
+
+    .config-textarea {
+        width: 100%;
+        min-height: 4.5rem;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.65rem;
+        background: #fff;
+        color: #19352c;
+        resize: vertical;
+    }
+
     @@media (max-width: 640px) {
         .config-row {
             flex-direction: column;
@@ -184,7 +254,13 @@
     private string? StatusMessage { get; set; }
     private bool HasValidationError { get; set; }
     private bool IsLoading { get; set; }
+    private bool IsLoadingDisclaimers { get; set; }
     private bool IsSaving { get; set; }
+    private bool IsSavingDisclaimers { get; set; }
+    private string SlottetDisclaimerText { get; set; } = string.Empty;
+    private string SkovenDisclaimerText { get; set; } = string.Empty;
+    private int? SlottetDepartmentId { get; set; }
+    private int? SkovenDepartmentId { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -195,6 +271,121 @@
         }
 
         await LoadShiftDefinitionsAsync();
+        await LoadDisclaimersAsync();
+    }
+
+    private async Task SaveDisclaimersAsync()
+    {
+        try
+        {
+            IsSavingDisclaimers = true;
+            HasValidationError = false;
+
+            if (SlottetDepartmentId is null || SkovenDepartmentId is null)
+            {
+                HasValidationError = true;
+                StatusMessage = "Kunne ikke gemme: afdelingerne blev ikke fundet.";
+                return;
+            }
+
+            var client = AuthService.CreateApiClient();
+
+            using var slottetResponse = await client.PutAsJsonAsync(
+                $"api/departments/{SlottetDepartmentId.Value}/message",
+                new UpdateDepartmentMessageRequestApiModel { Message = SlottetDisclaimerText.Trim() });
+
+            if (!slottetResponse.IsSuccessStatusCode)
+            {
+                var apiMessage = await slottetResponse.Content.ReadAsStringAsync();
+                HasValidationError = true;
+                StatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? $"Kunne ikke gemme disclaimer for Slottet. HTTP {(int)slottetResponse.StatusCode}."
+                    : apiMessage;
+                return;
+            }
+
+            using var skovenResponse = await client.PutAsJsonAsync(
+                $"api/departments/{SkovenDepartmentId.Value}/message",
+                new UpdateDepartmentMessageRequestApiModel { Message = SkovenDisclaimerText.Trim() });
+
+            if (!skovenResponse.IsSuccessStatusCode)
+            {
+                var apiMessage = await skovenResponse.Content.ReadAsStringAsync();
+                HasValidationError = true;
+                StatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? $"Kunne ikke gemme disclaimer for Skoven. HTTP {(int)skovenResponse.StatusCode}."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadDisclaimersAsync();
+
+            StatusMessage = "Afdelingsbeskeder er opdateret.";
+        }
+        catch (HttpRequestException)
+        {
+            HasValidationError = true;
+            StatusMessage = "Kunne ikke kontakte API'et for afdelingsbeskeder.";
+        }
+        finally
+        {
+            IsSavingDisclaimers = false;
+        }
+    }
+
+    private async Task ResetDisclaimersAsync()
+    {
+        if (IsSavingDisclaimers)
+        {
+            return;
+        }
+
+        await LoadDisclaimersAsync();
+
+        if (!HasValidationError)
+        {
+            StatusMessage = "Afdelingsbeskeder er genindlæst.";
+        }
+    }
+
+    private async Task LoadDisclaimersAsync()
+    {
+        try
+        {
+            IsLoadingDisclaimers = true;
+            HasValidationError = false;
+
+            var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/departments");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                HasValidationError = true;
+                StatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke hente afdelingsbeskeder."
+                    : apiMessage;
+                return;
+            }
+
+            var departments = await response.Content.ReadFromJsonAsync<List<DepartmentApiModel>>() ?? [];
+            var slottetDepartment = departments.FirstOrDefault(department => string.Equals(department.Name, "Slottet", StringComparison.OrdinalIgnoreCase));
+            var skovenDepartment = departments.FirstOrDefault(department => string.Equals(department.Name, "Skoven", StringComparison.OrdinalIgnoreCase));
+
+            SlottetDepartmentId = slottetDepartment?.Id;
+            SkovenDepartmentId = skovenDepartment?.Id;
+            SlottetDisclaimerText = slottetDepartment?.Message ?? string.Empty;
+            SkovenDisclaimerText = skovenDepartment?.Message ?? string.Empty;
+        }
+        catch (HttpRequestException)
+        {
+            HasValidationError = true;
+            StatusMessage = "Kunne ikke hente afdelingsbeskeder fra API'et.";
+        }
+        finally
+        {
+            IsLoadingDisclaimers = false;
+        }
     }
 
     private void HandleStartChanged(int index, ChangeEventArgs args)
@@ -531,5 +722,17 @@
         public TimeOnly StartTime { get; set; }
         public TimeOnly EndTime { get; set; }
         public bool IsActive { get; set; }
+    }
+
+    private sealed class DepartmentApiModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
+
+    private sealed class UpdateDepartmentMessageRequestApiModel
+    {
+        public string Message { get; set; } = string.Empty;
     }
 }

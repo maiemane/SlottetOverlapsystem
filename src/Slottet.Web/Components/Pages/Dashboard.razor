@@ -7,6 +7,13 @@
 <PageTitle>Overlapssystem</PageTitle>
 
 <section class="overlap-shell">
+    @if (!string.IsNullOrWhiteSpace(GetSelectedDepartmentMessage()))
+    {
+        <div class="overlap-page-disclaimer" role="note" aria-live="polite">
+            @GetSelectedDepartmentMessage()
+        </div>
+    }
+
     <header class="overlap-header">
         <div class="overlap-header-main">
             <div class="overlap-tags">
@@ -356,8 +363,24 @@
 
 <style>
     .overlap-shell {
-        padding: 2rem 0 3rem;
+        padding: 0 0 3rem;
         color: #19352c;
+    }
+
+    .overlap-page-disclaimer {
+        min-height: 2.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.65rem 0.9rem;
+        border: 1px solid rgba(153, 77, 40, 0.3);
+        border-radius: 0.8rem;
+        background: linear-gradient(90deg, #f4cf9f 0%, #f7dfbf 100%);
+        color: #5a2f17;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        text-align: center;
+        margin-bottom: 1rem;
     }
 
     .overlap-header {
@@ -467,6 +490,9 @@
         list-style: none;
         display: grid;
         gap: 0.4rem;
+        max-height: 165px;
+        overflow-y: auto;
+        padding-right: 0.2rem;
     }
 
     .overlap-shift-task-item {
@@ -919,6 +945,7 @@
     private bool IsCreateShiftTaskModalOpen { get; set; }
     private bool IsCreatingShiftTask { get; set; }
     private HashSet<int> UpdatingShiftTaskIds { get; } = [];
+    private Dictionary<string, string> DepartmentMessages { get; } = new(StringComparer.OrdinalIgnoreCase);
     private bool IsSaving { get; set; }
     private int NewShiftTaskShiftType { get; set; } = 1;
     private bool NewShiftTaskForAllShifts { get; set; }
@@ -976,6 +1003,7 @@
             LoadErrorMessage = null;
 
             using var client = AuthService.CreateApiClient();
+            await LoadDepartmentMessagesAsync(client);
             var shiftType = ResolveShiftType(AuthService.SelectedShift);
             using var shiftResponse = await client.GetAsync(
                 $"api/shifts/resolve?departmentId={departmentId}&date={SelectedDate:yyyy-MM-dd}&shiftType={shiftType}");
@@ -1057,6 +1085,41 @@
 
         SelectedDate = parsedDate.Date;
         await LoadOverviewAsync();
+    }
+
+    private async Task LoadDepartmentMessagesAsync(HttpClient client)
+    {
+        try
+        {
+            using var response = await client.GetAsync("api/departments");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var departments = await response.Content.ReadFromJsonAsync<List<DepartmentMessageApiModel>>() ?? [];
+            DepartmentMessages.Clear();
+
+            foreach (var department in departments)
+            {
+                if (!string.IsNullOrWhiteSpace(department.Name))
+                {
+                    DepartmentMessages[department.Name] = department.Message?.Trim() ?? string.Empty;
+                }
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Keep dashboard loading intact even if department message loading fails.
+        }
+    }
+
+    private string GetSelectedDepartmentMessage()
+    {
+        return DepartmentMessages.TryGetValue(AuthService.SelectedDepartment, out var message)
+            ? message
+            : string.Empty;
     }
 
     private void OpenCitizenModal(int citizenId)
@@ -1823,5 +1886,11 @@
         public int ShiftId { get; set; }
         public string Description { get; set; } = string.Empty;
         public int Status { get; set; }
+    }
+
+    private sealed class DepartmentMessageApiModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
     }
 }
