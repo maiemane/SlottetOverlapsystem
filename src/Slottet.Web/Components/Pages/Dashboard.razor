@@ -64,7 +64,7 @@
                         </p>
                         <p class="overlap-card-line">
                             <span>Næste</span>
-                            <strong>@citizen.NextMedicationLabel</strong>
+                            <strong class="@(citizen.IsNextMedicationOverdue ? "overlap-next-medication-overdue" : string.Empty)">@citizen.NextMedicationLabel</strong>
                         </p>
                         <p class="overlap-card-line">
                             <span>Hændelser</span>
@@ -173,9 +173,9 @@
                                     <label class="overlap-medication-item @(medication.IsRegistered ? "done" : string.Empty)" for="@inputId">
                                         <input id="@inputId"
                                                type="checkbox"
-                                               checked="@medication.IsRegistered"
+                                               @bind="medication.IsRegistered"
                                                disabled="@(IsSaving || medication.InitiallyRegistered || !CanRegisterMedication)"
-                                               @onchange="args => HandleMedicationRegistrationToggle(index, args)" />
+                                               @bind:event="onchange" />
                                         <div>
                                             <strong>@medication.Name</strong>
                                             <p>@medication.Description</p>
@@ -391,6 +391,10 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .overlap-card-line strong.overlap-next-medication-overdue {
+        color: #b42318;
     }
 
     .overlap-card-spacer {
@@ -808,26 +812,6 @@
         return Task.CompletedTask;
     }
 
-    private Task HandleMedicationRegistrationToggle(int index, ChangeEventArgs args)
-    {
-        if (SelectedCitizen is null || index < 0 || index >= SelectedCitizen.Medications.Count)
-        {
-            return Task.CompletedTask;
-        }
-
-        var medication = SelectedCitizen.Medications[index];
-        var isChecked = args.Value as bool? ?? string.Equals(args.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
-
-        if (medication.InitiallyRegistered)
-        {
-            medication.IsRegistered = true;
-            return Task.CompletedTask;
-        }
-
-        medication.IsRegistered = isChecked;
-        return Task.CompletedTask;
-    }
-
     private async Task SaveSelectedCitizenChangesAsync()
     {
         if (SelectedCitizen is null || Overview is null || !DepartmentIds.TryGetValue(AuthService.SelectedDepartment, out var departmentId))
@@ -872,7 +856,7 @@
             }
 
             var newMedicationRegistrations = SelectedCitizen.Medications
-                .Where(medication => !medication.InitiallyRegistered && medication.IsRegistered)
+                .Where(medication => medication.MedicationRegistrationId is null && medication.IsRegistered)
                 .ToList();
 
             foreach (var medication in newMedicationRegistrations)
@@ -895,15 +879,16 @@
                     {
                         medicinType = medication.MedicinType,
                         citizenFixedMedicationId = medication.FixedMedicationId,
-                        name = medication.Name,
-                        description = medication.Description,
-                        scheduledTime = medication.ScheduledTime,
                         registrationTime = DateTime.UtcNow
                     });
 
+                var apiMessage = await medicationResponse.Content.ReadAsStringAsync();
+
                 if (!medicationResponse.IsSuccessStatusCode)
                 {
-                    errors.Add($"Kunne ikke gemme medicinregistrering for {medication.Name}.");
+                    errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                        ? $"Kunne ikke gemme medicinregistrering for {medication.Name}."
+                        : apiMessage);
                     break;
                 }
             }
@@ -925,6 +910,10 @@
         catch (HttpRequestException)
         {
             SaveErrorMessage = "Kunne ikke opdatere data via API'et.";
+        }
+        catch (Exception)
+        {
+            SaveErrorMessage = "Der opstod en ukendt fejl ved gem.";
         }
         finally
         {
@@ -954,9 +943,16 @@
             .Select(citizen =>
             {
                 var registeredCount = citizen.Medications.Count(medication => medication.IsRegistered);
-                var nextMedication = citizen.Medications
+                var sortedMedications = citizen.Medications
                     .OrderBy(medication => medication.ScheduledTime)
-                    .FirstOrDefault();
+                    .ToList();
+                var now = DateTime.Now;
+                var overdueMedication = sortedMedications
+                    .FirstOrDefault(medication => !medication.IsRegistered && medication.ScheduledTime <= now);
+                var nextUpcomingMedication = sortedMedications
+                    .FirstOrDefault(medication => !medication.IsRegistered && medication.ScheduledTime > now);
+                var nextMedication = overdueMedication ?? nextUpcomingMedication;
+                var isNextMedicationOverdue = overdueMedication is not null;
 
                 return new CitizenCardModel
                 {
@@ -974,6 +970,7 @@
                     NextMedicationLabel = nextMedication is null
                         ? "-"
                         : $"{nextMedication.ScheduledTime:HH:mm} {nextMedication.Name}",
+                    IsNextMedicationOverdue = isNextMedicationOverdue,
                     SpecialEventsCount = citizen.SpecialEvents.Count
                 };
             })
@@ -1062,6 +1059,7 @@
         public int RegisteredMedications { get; set; }
         public int TotalMedications { get; set; }
         public string NextMedicationLabel { get; set; } = "-";
+        public bool IsNextMedicationOverdue { get; set; }
         public int SpecialEventsCount { get; set; }
     }
 
