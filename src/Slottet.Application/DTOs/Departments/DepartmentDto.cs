@@ -1,6 +1,6 @@
-namespace Slottet.Domain.Entities;
+namespace Slottet.Application.DTOs.Departments;
 
-public class Department
+public sealed class DepartmentDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
