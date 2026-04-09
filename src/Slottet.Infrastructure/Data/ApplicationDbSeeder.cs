@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Slottet.Domain.Entities;
+using Slottet.Domain.Enums;
 
 namespace Slottet.Infrastructure.Data;
 
@@ -34,6 +35,28 @@ public static class ApplicationDbSeeder
         if (missingDepartments.Count > 0)
         {
             await dbContext.Departments.AddRangeAsync(missingDepartments, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var existingShiftTypes = await dbContext.ShiftDefinitions
+            .AsNoTracking()
+            .Select(definition => definition.ShiftType)
+            .ToListAsync(cancellationToken);
+
+        var defaultShiftDefinitions = new[]
+        {
+            new ShiftDefinition { ShiftType = ShiftType.Dagvagt, StartTime = new TimeOnly(7, 0), EndTime = new TimeOnly(15, 0), IsActive = true },
+            new ShiftDefinition { ShiftType = ShiftType.Aftenvagt, StartTime = new TimeOnly(15, 0), EndTime = new TimeOnly(23, 0), IsActive = true },
+            new ShiftDefinition { ShiftType = ShiftType.Nattevagt, StartTime = new TimeOnly(23, 0), EndTime = new TimeOnly(7, 0), IsActive = true }
+        };
+
+        var missingShiftDefinitions = defaultShiftDefinitions
+            .Where(requiredDefinition => !existingShiftTypes.Contains(requiredDefinition.ShiftType))
+            .ToList();
+
+        if (missingShiftDefinitions.Count > 0)
+        {
+            await dbContext.ShiftDefinitions.AddRangeAsync(missingShiftDefinitions, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
