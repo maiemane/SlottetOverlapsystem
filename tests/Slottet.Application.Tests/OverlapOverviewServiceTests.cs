@@ -27,7 +27,9 @@ public class OverlapOverviewServiceTests
         Assert.Equal(TrafficLight.Grøn, anna.TrafficLight);
         Assert.Equal(2, anna.Medications.Count);
         Assert.Single(anna.SpecialEvents);
-        Assert.Equal([5], anna.AssignedEmployeeIds);
+        var annaEmployee = Assert.Single(anna.AssignedEmployees);
+        Assert.Equal(5, annaEmployee.EmployeeId);
+        Assert.Equal("Mette Hansen", annaEmployee.Name);
         Assert.Equal("Paracetamol", anna.Medications[0].Name);
         Assert.True(anna.Medications[0].IsRegistered);
         Assert.Equal(MedicinType.Fast, anna.Medications[0].MedicinType);
@@ -41,7 +43,9 @@ public class OverlapOverviewServiceTests
         Assert.Single(peter.Medications);
         Assert.False(peter.Medications[0].IsRegistered);
         Assert.Empty(peter.SpecialEvents);
-        Assert.Equal([6], peter.AssignedEmployeeIds);
+        var peterEmployee = Assert.Single(peter.AssignedEmployees);
+        Assert.Equal(6, peterEmployee.EmployeeId);
+        Assert.Equal("Jonas Madsen", peterEmployee.Name);
     }
 
     [Fact]
@@ -187,6 +191,22 @@ public class OverlapOverviewServiceTests
             ];
 
             return Task.FromResult(assignments);
+        }
+
+        public Task<IReadOnlyList<Employee>> GetEmployeesByIdsAsync(IReadOnlyCollection<int> employeeIds, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<Employee> employees = employeeIds
+                .Select(employeeId => employeeId switch
+                {
+                    5 => new Employee { Id = 5, Name = "Mette Hansen", Email = "mette@slottet.dk", PasswordHash = "hash", Role = "Medarbejder", IsActive = true },
+                    6 => new Employee { Id = 6, Name = "Jonas Madsen", Email = "jonas@slottet.dk", PasswordHash = "hash", Role = "Medarbejder", IsActive = true },
+                    _ => null
+                })
+                .Where(employee => employee is not null)
+                .Cast<Employee>()
+                .ToList();
+
+            return Task.FromResult(employees);
         }
     }
 }

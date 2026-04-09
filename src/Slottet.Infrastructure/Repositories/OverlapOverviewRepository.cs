@@ -75,4 +75,17 @@ public sealed class OverlapOverviewRepository : IOverlapOverviewRepository
             .Where(assignment => assignment.ShiftId == shiftId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Employee>> GetEmployeesByIdsAsync(IReadOnlyCollection<int> employeeIds, CancellationToken cancellationToken = default)
+    {
+        if (employeeIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.Employees
+            .AsNoTracking()
+            .Where(employee => employeeIds.Contains(employee.Id))
+            .ToListAsync(cancellationToken);
+    }
 }
