@@ -12,7 +12,8 @@ public class CitizenFixedMedicationServiceTests
     public async Task GetByCitizenAsync_Returns_fixed_medications_for_active_citizen()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CitizenFixedMedicationService(repository);
+        var shiftDefinitionService = new FakeShiftDefinitionService();
+        var sut = new CitizenFixedMedicationService(repository, shiftDefinitionService);
 
         var result = await sut.GetByCitizenAsync(1, CancellationToken.None);
 
@@ -24,7 +25,8 @@ public class CitizenFixedMedicationServiceTests
     public async Task GetByIdAsync_Returns_fixed_medication_when_it_belongs_to_citizen()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CitizenFixedMedicationService(repository);
+        var shiftDefinitionService = new FakeShiftDefinitionService();
+        var sut = new CitizenFixedMedicationService(repository, shiftDefinitionService);
 
         var result = await sut.GetByIdAsync(1, 20, CancellationToken.None);
 
@@ -37,14 +39,14 @@ public class CitizenFixedMedicationServiceTests
     public async Task UpdateAsync_Updates_fixed_medication_when_request_is_valid()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CitizenFixedMedicationService(repository);
+        var shiftDefinitionService = new FakeShiftDefinitionService();
+        var sut = new CitizenFixedMedicationService(repository, shiftDefinitionService);
 
         var result = await sut.UpdateAsync(1, 20, new UpdateCitizenFixedMedicationRequest
         {
             Name = "Pamol",
             Description = "1 tablet",
             ScheduledTime = new TimeOnly(20, 0),
-            ShiftType = ShiftType.Aftenvagt,
             IsActive = false
         }, CancellationToken.None);
 
@@ -59,17 +61,38 @@ public class CitizenFixedMedicationServiceTests
     public async Task UpdateAsync_Returns_failure_when_fixed_medication_is_not_found()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CitizenFixedMedicationService(repository);
+        var shiftDefinitionService = new FakeShiftDefinitionService();
+        var sut = new CitizenFixedMedicationService(repository, shiftDefinitionService);
 
         var result = await sut.UpdateAsync(1, 999, new UpdateCitizenFixedMedicationRequest
         {
             Name = "Pamol",
-            ScheduledTime = new TimeOnly(20, 0),
-            ShiftType = ShiftType.Aftenvagt
+            ScheduledTime = new TimeOnly(20, 0)
         }, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("FixedMedicationNotFound", result.Error);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Returns_failure_when_no_shift_definition_matches_time()
+    {
+        var repository = new FakeCitizenCreationRepository();
+        var shiftDefinitionService = new FakeShiftDefinitionService
+        {
+            ResolvedShiftType = null
+        };
+        var sut = new CitizenFixedMedicationService(repository, shiftDefinitionService);
+
+        var result = await sut.UpdateAsync(1, 20, new UpdateCitizenFixedMedicationRequest
+        {
+            Name = "Pamol",
+            ScheduledTime = new TimeOnly(20, 0),
+            IsActive = true
+        }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("ShiftDefinitionNotFound", result.Error);
     }
 
     private sealed class FakeCitizenCreationRepository : ICitizenCreationRepository
@@ -174,6 +197,36 @@ public class CitizenFixedMedicationServiceTests
         public Task<CitizenFixedMedication> UpdateFixedMedicationAsync(CitizenFixedMedication fixedMedication, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(fixedMedication);
+        }
+    }
+
+    private sealed class FakeShiftDefinitionService : IShiftDefinitionService
+    {
+        public ShiftType? ResolvedShiftType { get; init; } = ShiftType.Aftenvagt;
+
+        public Task<IReadOnlyList<Slottet.Application.DTOs.ShiftDefinitions.ShiftDefinitionDto>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Slottet.Application.DTOs.ShiftDefinitions.ShiftDefinitionDto>>([]);
+        }
+
+        public Task<Slottet.Application.DTOs.ShiftDefinitions.ShiftDefinitionDto?> GetByIdAsync(int shiftDefinitionId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<Slottet.Application.DTOs.ShiftDefinitions.ShiftDefinitionDto?>(null);
+        }
+
+        public Task<Slottet.Application.DTOs.ShiftDefinitions.UpdateShiftDefinitionResultDto> UpdateAsync(int shiftDefinitionId, Slottet.Application.DTOs.ShiftDefinitions.UpdateShiftDefinitionRequestDto request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new Slottet.Application.DTOs.ShiftDefinitions.UpdateShiftDefinitionResultDto());
+        }
+
+        public Task<Slottet.Application.DTOs.ShiftDefinitions.ResolvedShiftTypeDto?> ResolveByTimeAsync(TimeOnly time, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<Slottet.Application.DTOs.ShiftDefinitions.ResolvedShiftTypeDto?>(null);
+        }
+
+        public Task<ShiftType?> ResolveShiftTypeAsync(TimeOnly time, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ResolvedShiftType);
         }
     }
 }

@@ -10,6 +10,7 @@ using Slottet.Application.Services.Employees;
 using Slottet.Application.Services.Citizens;
 using Slottet.Application.Services.Medications;
 using Slottet.Application.Services.Overlap;
+using Slottet.Application.Services.ShiftDefinitions;
 using Slottet.Application.Services.Staffing;
 using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
@@ -87,6 +88,7 @@ builder.Services.AddScoped<ICreateCitizenFixedMedicationService, CreateCitizenFi
 builder.Services.AddScoped<ICitizenFixedMedicationService, CitizenFixedMedicationService>();
 builder.Services.AddScoped<IMedicationRegistrationService, MedicationRegistrationService>();
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
+builder.Services.AddScoped<IShiftDefinitionService, ShiftDefinitionService>();
 builder.Services.AddScoped<IStaffAllocationService, StaffAllocationService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
@@ -96,6 +98,7 @@ builder.Services.AddScoped<ICitizenCreationRepository, CitizenCreationRepository
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<IMedicationRegistrationRepository, MedicationRegistrationRepository>();
 builder.Services.AddScoped<IOverlapOverviewRepository, OverlapOverviewRepository>();
+builder.Services.AddScoped<IShiftDefinitionRepository, ShiftDefinitionRepository>();
 builder.Services.AddScoped<IStaffAllocationRepository, StaffAllocationRepository>();
 
 var app = builder.Build();

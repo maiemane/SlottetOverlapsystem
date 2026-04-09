@@ -1,17 +1,20 @@
 using Slottet.Application.DTOs.Citizens;
 using Slottet.Application.Interfaces;
 using Slottet.Domain.Entities;
-using Slottet.Domain.Enums;
 
 namespace Slottet.Application.Services.Citizens;
 
 public sealed class CitizenFixedMedicationService : ICitizenFixedMedicationService
 {
     private readonly ICitizenCreationRepository _citizenCreationRepository;
+    private readonly IShiftDefinitionService _shiftDefinitionService;
 
-    public CitizenFixedMedicationService(ICitizenCreationRepository citizenCreationRepository)
+    public CitizenFixedMedicationService(
+        ICitizenCreationRepository citizenCreationRepository,
+        IShiftDefinitionService shiftDefinitionService)
     {
         _citizenCreationRepository = citizenCreationRepository;
+        _shiftDefinitionService = shiftDefinitionService;
     }
 
     public async Task<IReadOnlyList<CitizenFixedMedicationDto>?> GetByCitizenAsync(int citizenId, CancellationToken cancellationToken = default)
@@ -55,8 +58,7 @@ public sealed class CitizenFixedMedicationService : ICitizenFixedMedicationServi
     {
         if (citizenId <= 0 ||
             fixedMedicationId <= 0 ||
-            string.IsNullOrWhiteSpace(request.Name) ||
-            !Enum.IsDefined(typeof(ShiftType), request.ShiftType))
+            string.IsNullOrWhiteSpace(request.Name))
         {
             return new UpdateCitizenFixedMedicationResult
             {
@@ -77,10 +79,21 @@ public sealed class CitizenFixedMedicationService : ICitizenFixedMedicationServi
             };
         }
 
+        var shiftType = await _shiftDefinitionService.ResolveShiftTypeAsync(request.ScheduledTime, cancellationToken);
+
+        if (shiftType is null)
+        {
+            return new UpdateCitizenFixedMedicationResult
+            {
+                IsSuccess = false,
+                Error = "ShiftDefinitionNotFound"
+            };
+        }
+
         fixedMedication.Name = request.Name.Trim();
         fixedMedication.Description = request.Description.Trim();
         fixedMedication.ScheduledTime = request.ScheduledTime;
-        fixedMedication.ShiftType = request.ShiftType;
+        fixedMedication.ShiftType = shiftType.Value;
         fixedMedication.IsActive = request.IsActive;
 
         var updatedMedication = await _citizenCreationRepository.UpdateFixedMedicationAsync(fixedMedication, cancellationToken);
