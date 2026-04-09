@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Slottet.Application.DTOs.Overlap;
+using Slottet.Application.DTOs.Staffing;
 using Slottet.Application.Interfaces;
 
 namespace Slottet.Api.Controllers;
@@ -11,10 +12,12 @@ namespace Slottet.Api.Controllers;
 public sealed class OverlapController : ControllerBase
 {
     private readonly IOverlapOverviewService _overlapOverviewService;
+    private readonly IStaffAllocationService _staffAllocationService;
 
-    public OverlapController(IOverlapOverviewService overlapOverviewService)
+    public OverlapController(IOverlapOverviewService overlapOverviewService, IStaffAllocationService staffAllocationService)
     {
         _overlapOverviewService = overlapOverviewService;
+        _staffAllocationService = staffAllocationService;
     }
     
     [HttpGet("departments/{departmentId:int}/shifts/{shiftId:int}/citizens")]
@@ -31,5 +34,21 @@ public sealed class OverlapController : ControllerBase
         }
 
         return Ok(overview);
+    }
+
+    [HttpGet("departments/{departmentId:int}/assignments")]
+    public async Task<ActionResult<CitizenAssignmentBoardDto>> GetCitizenAssignments(
+        int departmentId,
+        [FromQuery] DateTime date,
+        CancellationToken cancellationToken)
+    {
+        var board = await _staffAllocationService.GetCitizenAssignmentBoardAsync(departmentId, date, cancellationToken);
+
+        if (board is null)
+        {
+            return NotFound("Afdelingen blev ikke fundet.");
+        }
+
+        return Ok(board);
     }
 }

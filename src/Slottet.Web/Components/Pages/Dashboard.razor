@@ -1,53 +1,161 @@
 @page "/app"
 @implements IDisposable
+@using System.Net
+@using System.Net.Http.Json
 @inject AuthService AuthService
 
-<PageTitle>Slottet</PageTitle>
+<PageTitle>Overlapssystem</PageTitle>
 
-<section class="dashboard-shell">
-    <header class="dashboard-header">
-        <div class="dashboard-tags">
-            <span class="dashboard-tag">@AuthService.SelectedDepartment</span>
-            <span class="dashboard-tag dashboard-tag-alt">@AuthService.SelectedShift</span>
+<section class="overlap-shell">
+    <header class="overlap-header">
+        <div class="overlap-tags">
+            <span class="overlap-tag">@AuthService.SelectedDepartment</span>
+            <span class="overlap-tag overlap-tag-alt">@AuthService.SelectedShift</span>
+            <span class="overlap-tag overlap-tag-muted">@SelectedDate.ToString("dd-MM-yyyy")</span>
         </div>
-        <h1>@AuthService.SelectedDepartment overlapsystem</h1>
+        <div>
+            <h1>@AuthService.SelectedDepartment overlapsystem</h1>
+            <p class="overlap-subtitle">Borgeroversigt for den valgte afdeling og vagt.</p>
+        </div>
     </header>
 
-    @if (IsAdmin && !string.IsNullOrWhiteSpace(AuthService.AccessToken))
+    <div class="overlap-toolbar">
+        <label class="overlap-filter">
+            <span>Dato</span>
+            <input type="date" value="@SelectedDate.ToString("yyyy-MM-dd")" @onchange="HandleDateChangedAsync" />
+        </label>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
     {
-        <section class="token-panel">
-            <h2>Admin API-token</h2>
-            <p>I Swagger, Postman og curl kan du bruge Bearer-vaerdien nedenunder. Den ra token er kun med som reference.</p>
-            <label class="token-label" for="bearer-token">Bearer-vaerdi til Swagger, Postman og curl</label>
-            <textarea id="bearer-token" class="token-value" readonly>@BearerToken</textarea>
-            <label class="token-label" for="raw-token">Ra JWT token</label>
-            <textarea id="raw-token" class="token-value" readonly>@RawToken</textarea>
-        </section>
+        <div class="alert alert-danger" role="alert">@LoadErrorMessage</div>
+    }
+    else if (IsLoading)
+    {
+        <div class="overlap-status-card">
+            <p>Indlæser borgere...</p>
+        </div>
+    }
+    else if (Overview?.Citizens.Count is 0 or null)
+    {
+        <div class="overlap-status-card">
+            <p>Der blev ikke fundet aktive borgere for den valgte afdeling og vagt.</p>
+        </div>
+    }
+    else
+    {
+        <div class="overlap-grid">
+            @foreach (var citizen in CitizenCards)
+            {
+                <section class="overlap-card">
+                    <div class="overlap-card-indicator @GetTrafficLightClass(citizen.TrafficLight)"
+                         title="@GetTrafficLightLabel(citizen.TrafficLight)"
+                         aria-label="@GetTrafficLightLabel(citizen.TrafficLight)"></div>
+
+                    <header class="overlap-card-header">
+                        <p class="overlap-card-apartment">Lejlighed @citizen.ApartmentNumber</p>
+                        <h2>@citizen.CitizenName</h2>
+                    </header>
+
+                    <div class="overlap-card-spacer"></div>
+
+                    <div class="overlap-card-bottom-row">
+                        <div class="overlap-card-employees">
+                            <p class="overlap-card-employees-label">Medarbejdere</p>
+                            @if (citizen.EmployeeNames.Count == 0)
+                            {
+                                <p class="overlap-card-empty">Ingen tildelt</p>
+                            }
+                            else
+                            {
+                                <div class="overlap-card-employee-list">
+                                    @foreach (var employeeName in citizen.EmployeeNames)
+                                    {
+                                        <span class="overlap-card-employee">@employeeName</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="overlap-card-actions">
+                        <button type="button"
+                                class="overlap-expand-button"
+                                @onclick="() => OpenCitizenModal(citizen)">
+                            <span aria-hidden="true">↗</span>
+                            <span class="visually-hidden">Åbn @citizen.CitizenName</span>
+                        </button>
+                    </div>
+                    </div>
+                </section>
+            }
+        </div>
     }
 </section>
 
+@if (SelectedCitizen is not null)
+{
+    <div class="modal fade show d-block overlap-modal-backdrop" tabindex="-1" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content overlap-modal">
+                <div class="modal-header overlap-modal-header">
+                    <div>
+                        <p class="overlap-modal-apartment">Lejlighed @SelectedCitizen.ApartmentNumber</p>
+                        <h2 class="modal-title h4 mb-0">@SelectedCitizen.CitizenName</h2>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseCitizenModal"></button>
+                </div>
+
+                <div class="modal-body overlap-modal-body">
+                    <div class="overlap-modal-indicator-row">
+                        <span class="overlap-modal-label">Lyskrydsstatus</span>
+                        <span class="overlap-modal-indicator @GetTrafficLightClass(SelectedCitizen.TrafficLight)"></span>
+                    </div>
+
+                    <div class="overlap-modal-field">
+                        <label for="traffic-light-select">Skift status</label>
+                        <InputSelect TValue="int"
+                                     id="traffic-light-select"
+                                     class="form-select"
+                                     Value="SelectedCitizen.TrafficLight"
+                                     ValueChanged="@(value => HandleSelectedCitizenTrafficLightChanged(value))"
+                                     ValueExpression="() => SelectedCitizen.TrafficLight">
+                            @foreach (var option in TrafficLightOptions)
+                            {
+                                <option value="@option.Value">@option.Label</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCitizenModal">Luk</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
-    .dashboard-shell {
+    .overlap-shell {
         padding: 2rem 0 3rem;
         color: #19352c;
     }
 
-    .dashboard-header {
-        margin-bottom: 1.5rem;
+    .overlap-header {
+        display: grid;
+        gap: 0.6rem;
+        margin-bottom: 1.6rem;
     }
 
-    .dashboard-tags {
+    .overlap-tags {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
     }
 
-    .dashboard-header h1 {
-        margin: 0.35rem 0;
-    }
-
-    .dashboard-tag {
+    .overlap-tag {
         display: inline-flex;
+        align-items: center;
         padding: 0.35rem 0.75rem;
         border-radius: 999px;
         background: #dceadf;
@@ -57,59 +165,295 @@
         letter-spacing: 0.08em;
     }
 
-    .dashboard-tag-alt {
+    .overlap-tag-alt {
         background: #efe4d6;
     }
 
-    .token-panel {
-        margin-top: 2rem;
-        padding: 1.25rem;
-        border: 1px solid #c9d8cf;
-        border-radius: 1rem;
+    .overlap-tag-muted {
+        background: #e8ecea;
+        color: #4b6358;
+    }
+
+    .overlap-header h1 {
+        margin: 0;
+    }
+
+    .overlap-subtitle {
+        margin: 0.2rem 0 0;
+        color: #597166;
+    }
+
+    .overlap-status-card {
+        padding: 1.2rem 1.3rem;
+        border: 1px solid #d5e1da;
+        border-radius: 1.1rem;
         background: #f8fbf9;
-        max-width: 900px;
     }
 
-    .token-panel h2 {
-        margin: 0 0 0.5rem;
-        font-size: 1.1rem;
+    .overlap-status-card p {
+        margin: 0;
     }
 
-    .token-panel p {
-        margin: 0 0 0.75rem;
-        color: #496157;
+    .overlap-toolbar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.4rem;
     }
 
-    .token-value {
-        width: 100%;
-        min-height: 8rem;
-        padding: 0.85rem;
-        border: 1px solid #b8cbbf;
-        border-radius: 0.75rem;
-        background: #fff;
-        color: #19352c;
-        font-family: Consolas, Monaco, monospace;
-        font-size: 0.9rem;
-        resize: vertical;
-    }
-
-    .token-label {
-        display: block;
-        margin: 0.85rem 0 0.35rem;
+    .overlap-filter {
+        display: grid;
+        gap: 0.35rem;
+        min-width: 220px;
         font-weight: 700;
-        color: #19352c;
     }
 
+    .overlap-filter span {
+        font-size: 0.9rem;
+    }
+
+    .overlap-filter input {
+        padding: 0.75rem 0.9rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.85rem;
+        background: #fff;
+        color: #173126;
+    }
+
+    .overlap-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 290px));
+        gap: 1rem;
+        align-items: start;
+    }
+
+    .overlap-card {
+        position: relative;
+        width: 290px;
+        height: 220px;
+        padding: 1rem;
+        border: 1px solid #d8e2dc;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f4f7f5 100%);
+        box-shadow: 0 10px 24px rgba(29, 58, 46, 0.08);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .overlap-card-indicator,
+    .overlap-modal-indicator {
+        display: inline-flex;
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        border: 2px solid rgba(0, 0, 0, 0.08);
+        flex-shrink: 0;
+    }
+
+    .traffic-light-green {
+        background: #78d66b;
+    }
+
+    .traffic-light-yellow {
+        background: #f2c94c;
+    }
+
+    .traffic-light-red {
+        background: #eb5757;
+    }
+
+    .overlap-card-indicator {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+    }
+
+    .overlap-card-header {
+        padding-right: 1.4rem;
+    }
+
+    .overlap-card-apartment,
+    .overlap-modal-apartment {
+        margin: 0 0 0.25rem;
+        color: #647b70;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .overlap-card-header h2 {
+        margin: 0;
+        font-size: 1.02rem;
+        line-height: 1.2;
+    }
+
+    .overlap-card-spacer {
+        flex: 1;
+    }
+
+    .overlap-card-employees {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .overlap-card-bottom-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+        padding-top: 0.7rem;
+        border-top: 1px solid #dde6e1;
+    }
+
+    .overlap-card-employees-label {
+        margin: 0 0 0.45rem;
+        color: #647b70;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .overlap-card-employee-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .overlap-card-employee {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        background: #e7efea;
+        color: #284439;
+        font-size: 0.74rem;
+        font-weight: 600;
+    }
+
+    .overlap-card-empty {
+        margin: 0;
+        color: #7a9086;
+        font-size: 0.78rem;
+    }
+
+    .overlap-card-actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-shrink: 0;
+    }
+
+    .overlap-expand-button {
+        width: 2.35rem;
+        height: 2.35rem;
+        border: 1px solid #c7d7ce;
+        border-radius: 0.8rem;
+        background: #ffffff;
+        color: #19352c;
+        font-size: 1.1rem;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    .overlap-expand-button:hover {
+        transform: translateY(-1px);
+        border-color: #9db4a8;
+        box-shadow: 0 8px 16px rgba(29, 58, 46, 0.12);
+    }
+
+    .overlap-modal-backdrop {
+        background: rgba(16, 26, 21, 0.45);
+    }
+
+    .overlap-modal {
+        border: 0;
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+
+    .overlap-modal-header {
+        align-items: start;
+    }
+
+    .overlap-modal-body {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .overlap-modal-indicator-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.9rem 1rem;
+        border-radius: 0.9rem;
+        background: #f5f8f6;
+    }
+
+    .overlap-modal-label {
+        font-weight: 700;
+        color: #365246;
+    }
+
+    .overlap-modal-field {
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .overlap-modal-field label {
+        font-weight: 700;
+        color: #365246;
+    }
+
+    @@media (max-width: 640px) {
+        .overlap-grid {
+            grid-template-columns: 1fr;
+            justify-items: stretch;
+        }
+
+        .overlap-card {
+            width: 100%;
+        }
+    }
 </style>
 
 @code {
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
-    private string RawToken => AuthService.AccessToken ?? string.Empty;
-    private string BearerToken => $"Bearer {AuthService.AccessToken}";
+    private static readonly IReadOnlyDictionary<string, int> DepartmentIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Slottet"] = 1,
+        ["Skoven"] = 2
+    };
+
+    private static readonly IReadOnlyList<TrafficLightOption> TrafficLightOptions =
+    [
+        new(1, "Grøn"),
+        new(2, "Gul"),
+        new(3, "Rød")
+    ];
+
+    private CitizenOverviewResponse? Overview { get; set; }
+    private CitizenAssignmentBoardResponse? AssignmentBoard { get; set; }
+    private List<CitizenCardModel> CitizenCards { get; set; } = [];
+    private CitizenCardModel? SelectedCitizen { get; set; }
+    private string? LoadErrorMessage { get; set; }
+    private bool IsLoading { get; set; }
+    private DateTime SelectedDate { get; set; } = DateTime.Today;
 
     protected override void OnInitialized()
     {
         AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadOverviewAsync();
     }
 
     public void Dispose()
@@ -117,8 +461,310 @@
         AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
     }
 
-    private void HandleAuthenticationStateChanged()
+    private async void HandleAuthenticationStateChanged()
     {
-        InvokeAsync(StateHasChanged);
+        await LoadOverviewAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadOverviewAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Overview = null;
+            AssignmentBoard = null;
+            CitizenCards = [];
+            SelectedCitizen = null;
+            LoadErrorMessage = null;
+            IsLoading = false;
+            return;
+        }
+
+        if (!DepartmentIds.TryGetValue(AuthService.SelectedDepartment, out var departmentId))
+        {
+            Overview = null;
+            AssignmentBoard = null;
+            CitizenCards = [];
+            SelectedCitizen = null;
+            LoadErrorMessage = "Den valgte afdeling eller vagt kunne ikke oversættes til en gyldig overlapvisning.";
+            IsLoading = false;
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            LoadErrorMessage = null;
+
+            using var client = AuthService.CreateApiClient();
+            using var boardResponse = await client.GetAsync($"api/overlap/departments/{departmentId}/assignments?date={SelectedDate:yyyy-MM-dd}");
+
+            if (boardResponse.StatusCode == HttpStatusCode.NotFound)
+            {
+                Overview = null;
+                AssignmentBoard = null;
+                CitizenCards = [];
+                SelectedCitizen = null;
+                LoadErrorMessage = "Borgerfordelingen for den valgte dato kunne ikke hentes.";
+                return;
+            }
+
+            if (!boardResponse.IsSuccessStatusCode)
+            {
+                Overview = null;
+                AssignmentBoard = null;
+                CitizenCards = [];
+                SelectedCitizen = null;
+                LoadErrorMessage = "Medarbejdertildelingerne for den valgte dato kunne ikke hentes.";
+                return;
+            }
+
+            AssignmentBoard = await boardResponse.Content.ReadFromJsonAsync<CitizenAssignmentBoardResponse>();
+            var shiftType = ResolveShiftType(AuthService.SelectedShift);
+
+            if (AssignmentBoard?.Citizens.Count is 0)
+            {
+                Overview = new CitizenOverviewResponse
+                {
+                    ShiftDate = SelectedDate,
+                    Citizens = []
+                };
+                CitizenCards = [];
+                SelectedCitizen = null;
+                return;
+            }
+
+            var shiftId = GetShiftIdForSelectedShift(AssignmentBoard, shiftType);
+
+            if (shiftId is null)
+            {
+                Overview = null;
+                CitizenCards = [];
+                SelectedCitizen = null;
+                LoadErrorMessage = "Der blev ikke fundet en vagt for den valgte dato og vagt-type.";
+                return;
+            }
+
+            using var response = await client.GetAsync($"api/overlap/departments/{departmentId}/shifts/{shiftId.Value}/citizens");
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                Overview = null;
+                CitizenCards = [];
+                SelectedCitizen = null;
+                LoadErrorMessage = "Der findes endnu ikke overlapdata for den valgte afdeling og vagt.";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Overview = null;
+                CitizenCards = [];
+                SelectedCitizen = null;
+                LoadErrorMessage = "Overlapssystemet kunne ikke hente borgeroversigten.";
+                return;
+            }
+
+            Overview = await response.Content.ReadFromJsonAsync<CitizenOverviewResponse>();
+            CitizenCards = BuildCitizenCards(Overview, AssignmentBoard);
+            SelectedCitizen = null;
+        }
+        catch (TaskCanceledException)
+        {
+            Overview = null;
+            AssignmentBoard = null;
+            CitizenCards = [];
+            SelectedCitizen = null;
+            LoadErrorMessage = "Indlæsning af overlapssystemet tog for lang tid. Prøv igen.";
+        }
+        catch (HttpRequestException)
+        {
+            Overview = null;
+            AssignmentBoard = null;
+            CitizenCards = [];
+            SelectedCitizen = null;
+            LoadErrorMessage = "Kunne ikke hente overlapssystemet fra API'et.";
+        }
+        finally
+        {
+            IsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OpenCitizenModal(CitizenCardModel citizen)
+    {
+        SelectedCitizen = new CitizenCardModel
+        {
+            CitizenId = citizen.CitizenId,
+            CitizenName = citizen.CitizenName,
+            ApartmentNumber = citizen.ApartmentNumber,
+            TrafficLight = citizen.TrafficLight
+        };
+    }
+
+    private void CloseCitizenModal()
+    {
+        SelectedCitizen = null;
+    }
+
+    private Task HandleSelectedCitizenTrafficLightChanged(int trafficLight)
+    {
+        if (SelectedCitizen is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        SelectedCitizen.TrafficLight = trafficLight;
+
+        var card = CitizenCards.FirstOrDefault(citizen => citizen.CitizenId == SelectedCitizen.CitizenId);
+
+        if (card is not null)
+        {
+            card.TrafficLight = trafficLight;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleDateChangedAsync(ChangeEventArgs args)
+    {
+        if (!DateTime.TryParse(args.Value?.ToString(), out var parsedDate))
+        {
+            return;
+        }
+
+        SelectedDate = parsedDate.Date;
+        await LoadOverviewAsync();
+    }
+
+    private List<CitizenCardModel> BuildCitizenCards(CitizenOverviewResponse? overview, CitizenAssignmentBoardResponse? assignmentBoard)
+    {
+        if (overview?.Citizens is null)
+        {
+            return [];
+        }
+
+        var shiftType = ResolveShiftType(AuthService.SelectedShift);
+        var employeeNamesById = (assignmentBoard?.Employees ?? [])
+            .ToDictionary(employee => employee.EmployeeId, employee => employee.Name);
+
+        var employeesByCitizenId = (assignmentBoard?.Citizens ?? [])
+            .ToDictionary(
+                citizen => citizen.CitizenId,
+                citizen => citizen.Shifts
+                    .FirstOrDefault(shift => shift.ShiftType == shiftType)?
+                    .AssignedEmployeeIds
+                    .Where(employeeNamesById.ContainsKey)
+                    .Select(employeeId => employeeNamesById[employeeId])
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? []);
+
+        return overview.Citizens
+            .OrderBy(citizen => GetApartmentSortValue(citizen.ApartmentNumber))
+            .ThenBy(citizen => citizen.ApartmentNumber, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(citizen => citizen.CitizenName, StringComparer.OrdinalIgnoreCase)
+            .Select(citizen => new CitizenCardModel
+            {
+                CitizenId = citizen.CitizenId,
+                CitizenName = citizen.CitizenName,
+                TrafficLight = citizen.TrafficLight,
+                ApartmentNumber = citizen.ApartmentNumber,
+                EmployeeNames = employeesByCitizenId.GetValueOrDefault(citizen.CitizenId) ?? []
+            })
+            .ToList();
+    }
+
+    private static int ResolveShiftType(string selectedShift)
+    {
+        return selectedShift switch
+        {
+            "Dag" => 1,
+            "Aften" => 2,
+            "Nat" => 3,
+            _ => 1
+        };
+    }
+
+    private static int? GetShiftIdForSelectedShift(CitizenAssignmentBoardResponse? assignmentBoard, int shiftType)
+    {
+        return assignmentBoard?.Citizens
+            .SelectMany(citizen => citizen.Shifts)
+            .Where(shift => shift.ShiftType == shiftType)
+            .Select(shift => (int?)shift.ShiftId)
+            .FirstOrDefault();
+    }
+
+    private static int GetApartmentSortValue(string apartmentNumber)
+    {
+        return int.TryParse(apartmentNumber, out var parsedValue)
+            ? parsedValue
+            : int.MaxValue;
+    }
+
+    private static string GetTrafficLightClass(int trafficLight)
+    {
+        return trafficLight switch
+        {
+            1 => "traffic-light-green",
+            2 => "traffic-light-yellow",
+            3 => "traffic-light-red",
+            _ => "traffic-light-green"
+        };
+    }
+
+    private static string GetTrafficLightLabel(int trafficLight)
+    {
+        return trafficLight switch
+        {
+            1 => "Grøn",
+            2 => "Gul",
+            3 => "Rød",
+            _ => "Ukendt"
+        };
+    }
+
+    private sealed record TrafficLightOption(int Value, string Label);
+
+    private sealed class CitizenOverviewResponse
+    {
+        public DateTime ShiftDate { get; set; }
+        public List<CitizenCardModel> Citizens { get; set; } = [];
+    }
+
+    private sealed class CitizenCardModel
+    {
+        public int CitizenId { get; set; }
+        public string CitizenName { get; set; } = string.Empty;
+        public int TrafficLight { get; set; }
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public List<string> EmployeeNames { get; set; } = [];
+    }
+
+    private sealed class CitizenAssignmentBoardResponse
+    {
+        public DateTime Date { get; set; }
+        public List<EmployeeReference> Employees { get; set; } = [];
+        public List<CitizenAssignmentBoardCitizen> Citizens { get; set; } = [];
+    }
+
+    private sealed class EmployeeReference
+    {
+        public int EmployeeId { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class CitizenAssignmentBoardCitizen
+    {
+        public int CitizenId { get; set; }
+        public List<CitizenAssignmentBoardShift> Shifts { get; set; } = [];
+    }
+
+    private sealed class CitizenAssignmentBoardShift
+    {
+        public int ShiftId { get; set; }
+        public int ShiftType { get; set; }
+        public List<int> AssignedEmployeeIds { get; set; } = [];
     }
 }
