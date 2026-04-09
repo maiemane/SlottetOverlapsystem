@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Slottet.Application.DTOs.Overlap;
-using Slottet.Application.DTOs.Staffing;
 using Slottet.Application.Interfaces;
 
 namespace Slottet.Api.Controllers;
@@ -12,12 +11,10 @@ namespace Slottet.Api.Controllers;
 public sealed class OverlapController : ControllerBase
 {
     private readonly IOverlapOverviewService _overlapOverviewService;
-    private readonly IStaffAllocationService _staffAllocationService;
 
-    public OverlapController(IOverlapOverviewService overlapOverviewService, IStaffAllocationService staffAllocationService)
+    public OverlapController(IOverlapOverviewService overlapOverviewService)
     {
         _overlapOverviewService = overlapOverviewService;
-        _staffAllocationService = staffAllocationService;
     }
     
     [HttpGet("departments/{departmentId:int}/shifts/{shiftId:int}/citizens")]
