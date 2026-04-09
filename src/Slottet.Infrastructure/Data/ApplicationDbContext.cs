@@ -92,6 +92,7 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("Department");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Message).HasMaxLength(2000);
         });
 
         modelBuilder.Entity<Citizen>(entity =>
