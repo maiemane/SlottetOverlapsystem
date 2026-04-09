@@ -6,7 +6,7 @@ using Slottet.Application.Interfaces;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Vagtansvarlig")]
 [Route("api/shifts/{shiftId:int}")]
 public sealed class ShiftStaffingController : ControllerBase
 {
