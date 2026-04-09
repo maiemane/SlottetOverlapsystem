@@ -33,6 +33,17 @@ public sealed class CitizenCreationRepository : ICitizenCreationRepository
             .AsNoTracking()
             .Where(fixedMedication => fixedMedication.CitizenId == citizenId)
             .ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<Citizen>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Citizens
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<Citizen?> GetByIdAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Citizens
+            .FirstOrDefaultAsync(citizen => citizen.Id == citizenId, cancellationToken);
     }
 
     public Task<Department?> GetDepartmentByIdAsync(int departmentId, CancellationToken cancellationToken = default)
@@ -61,5 +72,25 @@ public sealed class CitizenCreationRepository : ICitizenCreationRepository
         _dbContext.CitizenFixedMedications.Update(fixedMedication);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return fixedMedication;
+    public async Task<Citizen> UpdateCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return citizen;
+    }
+
+    public async Task<bool> DeleteCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default)
+    {
+        _dbContext.Citizens.Remove(citizen);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            _dbContext.Entry(citizen).State = EntityState.Unchanged;
+            return false;
+        }
     }
 }

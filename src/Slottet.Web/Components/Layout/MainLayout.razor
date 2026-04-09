@@ -38,7 +38,7 @@
     }
 
     <div class="page-body">
-        @if (IsAdmin)
+        @if (CanSeeSidebar)
         {
             <aside class="admin-sidebar @(IsSidebarOpen ? "open" : "closed")">
                 <button type="button" class="sidebar-edge-toggle" @onclick="ToggleSidebar" aria-label="Skift sidebar">
@@ -47,9 +47,13 @@
 
                 <nav class="admin-nav @(IsSidebarOpen ? string.Empty : "admin-nav-hidden")">
                     <NavLink class="admin-nav-link" href="/app" Match="NavLinkMatch.All">Overlapssystem</NavLink>
-                    <NavLink class="admin-nav-link" href="/admin/opret-borger">Opret Borger</NavLink>
-                    <NavLink class="admin-nav-link" href="/admin/opret-medarbejder">Opret Medarbejder</NavLink>
-                    <NavLink class="admin-nav-link" href="/admin/historik">Søg i historik</NavLink>
+                    <NavLink class="admin-nav-link" href="/app/borger-fordeling">Borgerfordeling</NavLink>
+                    @if (IsAdmin)
+                    {
+                        <NavLink class="admin-nav-link" href="/admin/opret-borger">Opret Borger</NavLink>
+                        <NavLink class="admin-nav-link" href="/admin/opret-medarbejder">Opret Medarbejder</NavLink>
+                        <NavLink class="admin-nav-link" href="/admin/historik">Søg i historik</NavLink>
+                    }
                 </nav>
             </aside>
         }
@@ -72,6 +76,8 @@
     private bool IsSidebarOpen { get; set; } = true;
 
     private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private bool IsVagtansvarlig => AuthService.CurrentUser?.Role == "Vagtansvarlig";
+    private bool CanSeeSidebar => IsAdmin || IsVagtansvarlig;
 
     protected override void OnInitialized()
     {

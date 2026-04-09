@@ -23,7 +23,14 @@ public sealed class CitizensController : ControllerBase
         _createCitizenFixedMedicationService = createCitizenFixedMedicationService;
         _citizenFixedMedicationService = citizenFixedMedicationService;
     }
-    
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<CitizenDto>>> GetAll(CancellationToken cancellationToken)
+    {
+        var citizens = await _createCitizenService.GetAllAsync(cancellationToken);
+        return Ok(citizens);
+    }
+
     [HttpPost]
     public async Task<ActionResult<CreateCitizenResponse>> Create(
         [FromBody] CreateCitizenRequest request,
@@ -43,7 +50,7 @@ public sealed class CitizensController : ControllerBase
 
         return CreatedAtAction(
             nameof(Create),
-            new { id = result.Citizen!.CitizenId },
+            new { id = result.Citizen!.Id },
             result.Citizen);
     }
     
@@ -55,12 +62,23 @@ public sealed class CitizensController : ControllerBase
     {
         var result = await _createCitizenFixedMedicationService.CreateAsync(citizenId, request, cancellationToken);
 
+    [HttpPut("{citizenId:int}")]
+    public async Task<ActionResult<CitizenDto>> Update(
+        int citizenId,
+        [FromBody] UpdateCitizenRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _createCitizenService.UpdateAsync(citizenId, request, cancellationToken);
+
         if (!result.IsSuccess)
         {
             return result.Error switch
             {
                 "InvalidRequest" => BadRequest("Navn og gyldig vagttype er paakraevet."),
                 "CitizenNotFound" => NotFound("Borgeren blev ikke fundet."),
+                "NotFound" => NotFound("Borgeren blev ikke fundet."),
+                "InvalidRequest" => BadRequest("Navn, lejlighedsnummer, afdeling og trafiklys er påkrævet."),
+                "DepartmentNotFound" => NotFound("Afdelingen blev ikke fundet."),
                 _ => StatusCode(StatusCodes.Status500InternalServerError)
             };
         }
@@ -110,6 +128,13 @@ public sealed class CitizensController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _citizenFixedMedicationService.UpdateAsync(citizenId, fixedMedicationId, request, cancellationToken);
+        return Ok(result.Citizen);
+    }
+
+    [HttpDelete("{citizenId:int}")]
+    public async Task<IActionResult> Delete(int citizenId, CancellationToken cancellationToken)
+    {
+        var result = await _createCitizenService.DeleteAsync(citizenId, cancellationToken);
 
         if (!result.IsSuccess)
         {
@@ -117,10 +142,13 @@ public sealed class CitizensController : ControllerBase
             {
                 "InvalidRequest" => BadRequest("Navn og gyldig vagttype er paakraevet."),
                 "FixedMedicationNotFound" => NotFound("Fast medicin-planen blev ikke fundet."),
+                "NotFound" => NotFound("Borgeren blev ikke fundet."),
+                "HasRelations" => Conflict("Borgeren kan ikke slettes, fordi den bruges i eksisterende registreringer."),
                 _ => StatusCode(StatusCodes.Status500InternalServerError)
             };
         }
 
         return Ok(result.FixedMedication);
+        return NoContent();
     }
 }

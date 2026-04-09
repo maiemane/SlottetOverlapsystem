@@ -1,4 +1,7 @@
 @page "/admin/opret-borger"
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using System.Net.Http.Json
 @inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
@@ -8,17 +11,573 @@
 {
     <section class="p-4">
         <h1>Opret Borger</h1>
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+            <h2 class="h4 mb-0">Borgere</h2>
+            <button type="button" class="btn btn-primary" @onclick="ShowCreateForm">
+                Tilføj borger
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+        {
+            <div class="alert alert-success" role="alert">@SuccessMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@LoadErrorMessage</div>
+        }
+        else if (IsLoadingCitizens)
+        {
+            <p>Indlæser borgere...</p>
+        }
+        else if (Citizens.Count == 0)
+        {
+            <p>Der er ingen borgere endnu.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Navn</th>
+                            <th>Lejlighed</th>
+                            <th>Trafiklys</th>
+                            <th>Afdeling</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var citizen in Citizens)
+                        {
+                            <tr>
+                                <td>@citizen.Name</td>
+                                <td>@citizen.ApartmentNumber</td>
+                                <td>@GetTrafficLightLabel(citizen.TrafficLight)</td>
+                                <td>@GetDepartmentName(citizen.DepartmentId)</td>
+                                <td>@(citizen.IsActive ? "Aktiv" : "Inaktiv")</td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-outline-primary btn-sm me-2" @onclick="@(() => ShowEditForm(citizen))">
+                                        Rediger
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" @onclick="@(() => PromptDelete(citizen))">
+                                        Slet
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (IsCreateFormVisible)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5 mb-0">Ny borger</h2>
+                            <button type="button" class="btn-close" aria-label="Close" @onclick="HideCreateForm"></button>
+                        </div>
+                        <div class="modal-body">
+                            <EditForm Model="@Model" OnValidSubmit="@HandleSubmitAsync">
+                                <DataAnnotationsValidator />
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="citizen-name">Navn</label>
+                                    <InputText id="citizen-name" class="form-control" @bind-Value="Model.Name" />
+                                    <ValidationMessage For="@(() => Model.Name)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="citizen-apartment-number">Lejlighedsnummer</label>
+                                    <InputText id="citizen-apartment-number" class="form-control" @bind-Value="Model.ApartmentNumber" />
+                                    <ValidationMessage For="@(() => Model.ApartmentNumber)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="citizen-traffic-light">Trafiklys</label>
+                                    <InputSelect id="citizen-traffic-light" class="form-select" @bind-Value="Model.TrafficLight">
+                                        <option value="0">Vælg trafiklys</option>
+                                        @foreach (var option in TrafficLightOptions)
+                                        {
+                                            <option value="@option.Value">@option.Label</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => Model.TrafficLight)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="citizen-department">Afdeling</label>
+                                    <InputSelect id="citizen-department" class="form-select" @bind-Value="Model.DepartmentId">
+                                        @foreach (var option in DepartmentOptions)
+                                        {
+                                            <option value="@option.Id">@option.Name</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => Model.DepartmentId)" />
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                                {
+                                    <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+                                }
+
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="HideCreateForm" disabled="@IsSubmitting">
+                                        Annuller
+                                    </button>
+                                    <button type="submit" class="btn btn-primary" disabled="@IsSubmitting">
+                                        @(IsSubmitting ? "Opretter..." : "Opret borger")
+                                    </button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (CitizenBeingEdited is not null)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5 mb-0">Rediger borger</h2>
+                            <button type="button" class="btn-close" aria-label="Close" @onclick="HideEditForm"></button>
+                        </div>
+                        <div class="modal-body">
+                            <EditForm Model="@EditModel" OnValidSubmit="@HandleEditAsync">
+                                <DataAnnotationsValidator />
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-citizen-name">Navn</label>
+                                    <InputText id="edit-citizen-name" class="form-control" @bind-Value="EditModel.Name" />
+                                    <ValidationMessage For="@(() => EditModel.Name)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-citizen-apartment-number">Lejlighedsnummer</label>
+                                    <InputText id="edit-citizen-apartment-number" class="form-control" @bind-Value="EditModel.ApartmentNumber" />
+                                    <ValidationMessage For="@(() => EditModel.ApartmentNumber)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-citizen-traffic-light">Trafiklys</label>
+                                    <InputSelect id="edit-citizen-traffic-light" class="form-select" @bind-Value="EditModel.TrafficLight">
+                                        <option value="0">Vælg trafiklys</option>
+                                        @foreach (var option in TrafficLightOptions)
+                                        {
+                                            <option value="@option.Value">@option.Label</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => EditModel.TrafficLight)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="edit-citizen-department">Afdeling</label>
+                                    <InputSelect id="edit-citizen-department" class="form-select" @bind-Value="EditModel.DepartmentId">
+                                        @foreach (var option in DepartmentOptions)
+                                        {
+                                            <option value="@option.Id">@option.Name</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => EditModel.DepartmentId)" />
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <InputCheckbox id="edit-citizen-active" class="form-check-input" @bind-Value="EditModel.IsActive" />
+                                    <label class="form-check-label" for="edit-citizen-active">Aktiv borger</label>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(EditErrorMessage))
+                                {
+                                    <div class="alert alert-danger" role="alert">@EditErrorMessage</div>
+                                }
+
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="HideEditForm" disabled="@IsEditing">
+                                        Annuller
+                                    </button>
+                                    <button type="submit" class="btn btn-primary" disabled="@IsEditing">
+                                        @(IsEditing ? "Gemmer..." : "Gem ændringer")
+                                    </button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (CitizenPendingDelete is not null)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5 mb-0">Bekræft sletning</h2>
+                            <button type="button" class="btn-close" aria-label="Close" @onclick="CancelDelete"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">Er du sikker på, at du vil slette @CitizenPendingDelete.Name?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@IsDeleting">
+                                Annuller
+                            </button>
+                            <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@IsDeleting">
+                                @(IsDeleting ? "Sletter..." : "Ja, slet")
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </section>
 }
 
 @code {
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private static readonly IReadOnlyList<DepartmentOption> DepartmentOptions =
+    [
+        new(1, "Slottet"),
+        new(2, "Skoven")
+    ];
 
-    protected override void OnInitialized()
+    private static readonly IReadOnlyList<TrafficLightOption> TrafficLightOptions =
+    [
+        new(1, "Grøn"),
+        new(2, "Gul"),
+        new(3, "Rød")
+    ];
+
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private List<CitizenListItem> Citizens { get; set; } = [];
+    private CreateCitizenFormModel Model { get; set; } = new();
+    private EditCitizenFormModel EditModel { get; set; } = new();
+    private bool IsLoadingCitizens { get; set; }
+    private bool IsSubmitting { get; set; }
+    private bool IsEditing { get; set; }
+    private bool IsDeleting { get; set; }
+    private bool IsCreateFormVisible { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? EditErrorMessage { get; set; }
+    private string? LoadErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private CitizenListItem? CitizenBeingEdited { get; set; }
+    private CitizenListItem? CitizenPendingDelete { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
         if (!IsAdmin)
         {
             NavigationManager.NavigateTo("/app", replace: true);
+            return;
+        }
+
+        Model = CreateDefaultCreateModel();
+        await LoadCitizensAsync();
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        IsSubmitting = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsJsonAsync("api/citizens", new
+            {
+                name = Model.Name.Trim(),
+                apartmentNumber = Model.ApartmentNumber.Trim(),
+                trafficLight = Model.TrafficLight,
+                departmentId = Model.DepartmentId
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Borgeren blev oprettet.";
+                Model = CreateDefaultCreateModel();
+                await LoadCitizensAsync();
+                IsCreateFormVisible = false;
+                return;
+            }
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                ErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke oprette borgeren."
+                    : apiMessage;
+                return;
+            }
+
+            ErrorMessage = "Der opstod en fejl ved oprettelse af borgeren.";
+        }
+        catch (HttpRequestException)
+        {
+            ErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsSubmitting = false;
         }
     }
+
+    private void ShowCreateForm()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        Model = CreateDefaultCreateModel();
+        IsCreateFormVisible = true;
+    }
+
+    private void HideCreateForm()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        Model = CreateDefaultCreateModel();
+        IsCreateFormVisible = false;
+    }
+
+    private void ShowEditForm(CitizenListItem citizen)
+    {
+        SuccessMessage = null;
+        EditErrorMessage = null;
+        CitizenBeingEdited = citizen;
+        EditModel = new EditCitizenFormModel
+        {
+            Name = citizen.Name,
+            ApartmentNumber = citizen.ApartmentNumber,
+            TrafficLight = citizen.TrafficLight,
+            DepartmentId = citizen.DepartmentId,
+            IsActive = citizen.IsActive
+        };
+    }
+
+    private void HideEditForm()
+    {
+        EditErrorMessage = null;
+        CitizenBeingEdited = null;
+        EditModel = new EditCitizenFormModel();
+    }
+
+    private async Task HandleEditAsync()
+    {
+        if (CitizenBeingEdited is null)
+        {
+            return;
+        }
+
+        IsEditing = true;
+        EditErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.PutAsJsonAsync($"api/citizens/{CitizenBeingEdited.Id}", new
+            {
+                name = EditModel.Name.Trim(),
+                apartmentNumber = EditModel.ApartmentNumber.Trim(),
+                trafficLight = EditModel.TrafficLight,
+                departmentId = EditModel.DepartmentId,
+                isActive = EditModel.IsActive
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Borgeren blev opdateret.";
+                await LoadCitizensAsync();
+                HideEditForm();
+                return;
+            }
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                EditErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke opdatere borgeren."
+                    : apiMessage;
+                return;
+            }
+
+            EditErrorMessage = "Der opstod en fejl ved opdatering af borgeren.";
+        }
+        catch (HttpRequestException)
+        {
+            EditErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsEditing = false;
+        }
+    }
+
+    private void PromptDelete(CitizenListItem citizen)
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        CitizenPendingDelete = citizen;
+    }
+
+    private void CancelDelete()
+    {
+        CitizenPendingDelete = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (CitizenPendingDelete is null)
+        {
+            return;
+        }
+
+        IsDeleting = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.DeleteAsync($"api/citizens/{CitizenPendingDelete.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                SuccessMessage = "Borgeren blev slettet.";
+                CitizenPendingDelete = null;
+                await LoadCitizensAsync();
+                return;
+            }
+
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict or HttpStatusCode.BadRequest)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                ErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke slette borgeren."
+                    : apiMessage;
+                return;
+            }
+
+            ErrorMessage = "Der opstod en fejl ved sletning af borgeren.";
+        }
+        catch (HttpRequestException)
+        {
+            ErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsDeleting = false;
+        }
+    }
+
+    private async Task LoadCitizensAsync()
+    {
+        IsLoadingCitizens = true;
+        LoadErrorMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/citizens");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var citizens = await response.Content.ReadFromJsonAsync<List<CitizenListItem>>();
+                Citizens = citizens ?? [];
+                return;
+            }
+
+            var apiMessage = await response.Content.ReadAsStringAsync();
+            LoadErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                ? $"Kunne ikke hente borgere fra API'et. HTTP {(int)response.StatusCode}."
+                : $"Kunne ikke hente borgere fra API'et. HTTP {(int)response.StatusCode}: {apiMessage}";
+        }
+        catch (HttpRequestException)
+        {
+            LoadErrorMessage = "Kunne ikke hente borgere fra API'et.";
+        }
+        finally
+        {
+            IsLoadingCitizens = false;
+        }
+    }
+
+    private CreateCitizenFormModel CreateDefaultCreateModel()
+    {
+        return new CreateCitizenFormModel
+        {
+            DepartmentId = ResolveDepartmentId(AuthService.SelectedDepartment)
+        };
+    }
+
+    private static int ResolveDepartmentId(string? departmentName)
+    {
+        var match = DepartmentOptions.FirstOrDefault(option =>
+            string.Equals(option.Name, departmentName, StringComparison.OrdinalIgnoreCase));
+
+        return match?.Id ?? DepartmentOptions[0].Id;
+    }
+
+    private static string GetDepartmentName(int departmentId)
+    {
+        return DepartmentOptions.FirstOrDefault(option => option.Id == departmentId)?.Name ?? $"Afdeling {departmentId}";
+    }
+
+    private static string GetTrafficLightLabel(int trafficLight)
+    {
+        return TrafficLightOptions.FirstOrDefault(option => option.Value == trafficLight)?.Label ?? trafficLight.ToString();
+    }
+
+    private sealed class CreateCitizenFormModel
+    {
+        [Required(ErrorMessage = "Navn er påkrævet.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Lejlighedsnummer er påkrævet.")]
+        public string ApartmentNumber { get; set; } = string.Empty;
+
+        [Range(1, 3, ErrorMessage = "Trafiklys er påkrævet.")]
+        public int TrafficLight { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Afdeling er påkrævet.")]
+        public int DepartmentId { get; set; }
+    }
+
+    private sealed class EditCitizenFormModel
+    {
+        [Required(ErrorMessage = "Navn er påkrævet.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Lejlighedsnummer er påkrævet.")]
+        public string ApartmentNumber { get; set; } = string.Empty;
+
+        [Range(1, 3, ErrorMessage = "Trafiklys er påkrævet.")]
+        public int TrafficLight { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Afdeling er påkrævet.")]
+        public int DepartmentId { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    private sealed class CitizenListItem
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public int TrafficLight { get; set; }
+        public int DepartmentId { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private sealed record DepartmentOption(int Id, string Name);
+
+    private sealed record TrafficLightOption(int Value, string Label);
 }
