@@ -12,6 +12,62 @@ public sealed class StaffAllocationService : IStaffAllocationService
         _staffAllocationRepository = staffAllocationRepository;
     }
 
+    public async Task<CitizenAssignmentBoardDto?> GetCitizenAssignmentBoardAsync(int departmentId, DateTime date, CancellationToken cancellationToken = default)
+    {
+        if (departmentId <= 0)
+        {
+            return null;
+        }
+
+        var department = await _staffAllocationRepository.GetDepartmentByIdAsync(departmentId, cancellationToken);
+
+        if (department is null)
+        {
+            return null;
+        }
+
+        var targetDate = date.Date;
+        var shifts = await _staffAllocationRepository.EnsureShiftsForDepartmentAndDateAsync(departmentId, targetDate, cancellationToken);
+        var citizens = await _staffAllocationRepository.GetActiveCitizensByDepartmentAsync(departmentId, cancellationToken);
+        var employees = await _staffAllocationRepository.GetActiveEmployeesAsync(cancellationToken);
+        var shiftIds = shifts.Select(shift => shift.Id).ToList();
+        var assignments = await _staffAllocationRepository.GetCitizenAssignmentsByShiftIdsAsync(shiftIds, cancellationToken);
+
+        return new CitizenAssignmentBoardDto
+        {
+            DepartmentId = department.Id,
+            DepartmentName = department.Name,
+            Date = targetDate,
+            Employees = employees
+                .OrderBy(employee => employee.Name)
+                .Select(MapStaffMember)
+                .ToList(),
+            Citizens = citizens
+                .OrderBy(citizen => citizen.ApartmentNumber)
+                .ThenBy(citizen => citizen.Name)
+                .Select(citizen => new CitizenAssignmentBoardCitizenDto
+                {
+                    CitizenId = citizen.Id,
+                    Name = citizen.Name,
+                    ApartmentNumber = citizen.ApartmentNumber,
+                    Shifts = shifts
+                        .OrderBy(shift => shift.Type)
+                        .Select(shift => new CitizenAssignmentBoardShiftDto
+                        {
+                            ShiftId = shift.Id,
+                            ShiftType = shift.Type,
+                            AssignedEmployeeIds = assignments
+                                .Where(assignment => assignment.CitizenId == citizen.Id && assignment.ShiftId == shift.Id)
+                                .OrderBy(assignment => assignment.EmployeeId)
+                                .Select(assignment => assignment.EmployeeId)
+                                .ToList()
+                        })
+                        .ToList()
+                })
+                .ToList()
+        };
+    }
+
     public async Task<ShiftStaffingDto?> GetShiftEmployeesAsync(int shiftId, CancellationToken cancellationToken = default)
     {
         if (shiftId <= 0)

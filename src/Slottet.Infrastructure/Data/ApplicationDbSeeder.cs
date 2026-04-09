@@ -14,15 +14,26 @@ public static class ApplicationDbSeeder
 
         await dbContext.Database.MigrateAsync(cancellationToken);
 
-        if (!await dbContext.Departments.AnyAsync(cancellationToken))
+        var requiredDepartmentNames = new[]
         {
-            var departments = new[]
-            {
-                new Department { Id = 1, Name = "Slottet" },
-                new Department { Id = 2, Name = "Skoven" }
-            };
+            "Slottet",
+            "Skoven"
+        };
 
-            await dbContext.Departments.AddRangeAsync(departments, cancellationToken);
+        var existingDepartmentNames = await dbContext.Departments
+            .AsNoTracking()
+            .Select(department => department.Name)
+            .ToListAsync(cancellationToken);
+
+        var missingDepartments = requiredDepartmentNames
+            .Where(requiredName => !existingDepartmentNames.Any(existingName =>
+                string.Equals(existingName, requiredName, StringComparison.OrdinalIgnoreCase)))
+            .Select(name => new Department { Name = name })
+            .ToList();
+
+        if (missingDepartments.Count > 0)
+        {
+            await dbContext.Departments.AddRangeAsync(missingDepartments, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 

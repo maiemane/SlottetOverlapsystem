@@ -1,0 +1,764 @@
+@page "/app/borger-fordeling"
+@implements IDisposable
+@using System.Net
+@using System.Net.Http.Json
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+
+<PageTitle>Borgerfordeling</PageTitle>
+
+@if (CanUsePage)
+{
+    <section class="assignment-shell">
+        <header class="assignment-header">
+            <div>
+                <div class="assignment-tags">
+                    <span class="assignment-tag">@AuthService.SelectedDepartment</span>
+                    <span class="assignment-tag assignment-tag-alt">@SelectedDate.ToString("dd-MM-yyyy")</span>
+                </div>
+                <h1>Borgerfordeling</h1>
+            </div>
+        </header>
+
+        <div class="assignment-toolbar">
+            <label class="assignment-filter">
+                <span>Dato</span>
+                <input type="date" value="@SelectedDate.ToString("yyyy-MM-dd")" @onchange="HandleDateChangedAsync" />
+            </label>
+
+            <label class="assignment-filter">
+                <span>Lejlighed</span>
+                <select value="@SelectedApartment" @onchange="HandleApartmentChanged">
+                    <option value="">Alle lejligheder</option>
+                    @foreach (var apartment in ApartmentOptions)
+                    {
+                        <option value="@apartment">@apartment</option>
+                    }
+                </select>
+            </label>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@LoadErrorMessage</div>
+        }
+        else if (IsLoading)
+        {
+            <p>Indlæser borgerfordeling...</p>
+        }
+        else if (FilteredCitizens.Count == 0)
+        {
+            <p>Der blev ikke fundet borgere for den valgte afdeling og filtrering.</p>
+        }
+        else
+        {
+            <div class="citizen-grid">
+                @foreach (var citizen in FilteredCitizens)
+                {
+                    <section class="citizen-card">
+                        <div class="citizen-card-layout">
+                            <header class="citizen-card-header">
+                                <div>
+                                    <p class="citizen-card-apartment">Lejlighed @citizen.ApartmentNumber</p>
+                                    <h2>@citizen.Name</h2>
+                                </div>
+                            </header>
+
+                            <div class="shift-grid">
+                                @foreach (var shift in citizen.Shifts.OrderBy(shift => shift.SortOrder))
+                                {
+                                    <section class="shift-card">
+                                        <div class="shift-card-header">
+                                            <h3>@shift.Label</h3>
+                                            @if (shift.ExistingEmployeeIds.Count > 1)
+                                            {
+                                                <span class="shift-note">Flere</span>
+                                            }
+                                        </div>
+
+                                        <details class="multi-select">
+                                            <summary class="multi-select-trigger">
+                                                @if (shift.SelectedEmployeeIds.Count == 0)
+                                                {
+                                                    <span class="multi-select-placeholder">Vælg medarbejdere</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="multi-select-values">
+                                                        @foreach (var employeeId in shift.SelectedEmployeeIds)
+                                                        {
+                                                            <span class="multi-select-chip">@GetEmployeeName(employeeId)</span>
+                                                        }
+                                                    </span>
+                                                }
+                                                <span class="multi-select-caret">▾</span>
+                                            </summary>
+
+                                            <div class="multi-select-menu">
+                                                @foreach (var employee in Employees)
+                                                {
+                                                    var isSelected = shift.SelectedEmployeeIds.Contains(employee.EmployeeId);
+                                                    var isDisabled = !isSelected && shift.SelectedEmployeeIds.Count >= 2;
+
+                                                    <label class="multi-select-option @(isDisabled ? "disabled" : string.Empty)">
+                                                        <input type="checkbox"
+                                                               checked="@isSelected"
+                                                               disabled="@isDisabled"
+                                                               @onchange="@(args => ToggleEmployeeSelection(citizen.CitizenId, shift.ShiftId, employee.EmployeeId, args))" />
+                                                        <span>@employee.Name</span>
+                                                    </label>
+                                                }
+                                            </div>
+                                        </details>
+
+                                        <p class="shift-help">Maks 2 medarbejdere</p>
+                                    </section>
+                                }
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(citizen.ErrorMessage))
+                        {
+                            <div class="alert alert-danger shift-alert" role="alert">@citizen.ErrorMessage</div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(citizen.SuccessMessage))
+                        {
+                            <div class="alert alert-success shift-alert" role="alert">@citizen.SuccessMessage</div>
+                        }
+
+                        <button type="button"
+                                class="btn btn-primary citizen-save"
+                                @onclick="() => SaveCitizenAssignmentsAsync(citizen.CitizenId)"
+                                disabled="@citizen.IsSaving">
+                            @(citizen.IsSaving ? "Gemmer..." : "Gem alle vagter")
+                        </button>
+                    </section>
+                }
+            </div>
+        }
+    </section>
+}
+
+<style>
+    .assignment-shell {
+        padding: 2rem 0 3rem;
+        color: #173126;
+    }
+
+    .assignment-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .assignment-tags {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
+    }
+
+    .assignment-tag {
+        display: inline-flex;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: #dceadf;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .assignment-tag-alt {
+        background: #efe4d6;
+    }
+
+    .assignment-toolbar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .assignment-filter {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        font-weight: 700;
+    }
+
+    .assignment-filter span {
+        font-size: 0.9rem;
+    }
+
+    .assignment-filter input,
+    .assignment-filter select {
+        padding: 0.75rem 0.9rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.85rem;
+        background: #fff;
+        color: #173126;
+    }
+
+    .citizen-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.65rem;
+    }
+
+    .citizen-card {
+        border: 1px solid #d6e2da;
+        border-radius: 1rem;
+        background: linear-gradient(180deg, #fbfdfc 0%, #f2f7f4 100%);
+        padding: 0.7rem 0.85rem;
+        box-shadow: 0 8px 22px rgba(34, 63, 50, 0.07);
+    }
+
+    .citizen-card-layout {
+        display: grid;
+        grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+        gap: 0.85rem;
+        align-items: start;
+    }
+
+    .citizen-card-header {
+        display: flex;
+        align-items: center;
+        min-height: 100%;
+    }
+
+    .citizen-card-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        line-height: 1.2;
+    }
+
+    .citizen-card-apartment {
+        margin: 0 0 0.25rem;
+        color: #5c7569;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .shift-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+    }
+
+    .shift-card {
+        border: 1px solid #d5e0d8;
+        border-radius: 0.85rem;
+        background: #fff;
+        padding: 0.6rem;
+        min-width: 0;
+    }
+
+    .shift-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.55rem;
+    }
+
+    .shift-card-header h3 {
+        margin: 0;
+        font-size: 0.84rem;
+    }
+
+    .shift-note {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #8f5f16;
+        background: #fff0cf;
+        padding: 0.15rem 0.45rem;
+        border-radius: 999px;
+    }
+
+    .shift-help {
+        margin: 0.4rem 0 0;
+        font-size: 0.74rem;
+        color: #5f7067;
+    }
+
+    .multi-select {
+        position: relative;
+    }
+
+    .multi-select summary {
+        list-style: none;
+    }
+
+    .multi-select summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .multi-select-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-height: 2.15rem;
+        padding: 0.4rem 0.55rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.75rem;
+        background: #fff;
+        cursor: pointer;
+    }
+
+    .multi-select-values {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+
+    .multi-select-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        background: #dceadf;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+
+    .multi-select-placeholder {
+        color: #6d8478;
+        font-size: 0.78rem;
+    }
+
+    .multi-select-caret {
+        color: #4d665a;
+        font-size: 0.75rem;
+    }
+
+    .multi-select-menu {
+        display: grid;
+        gap: 0.2rem;
+        margin-top: 0.35rem;
+        padding: 0.4rem 0.45rem;
+        border: 1px solid #d5e0d8;
+        border-radius: 0.75rem;
+        background: #fbfdfc;
+    }
+
+    .multi-select-option {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.2rem 0.1rem;
+        font-size: 0.78rem;
+        cursor: pointer;
+    }
+
+    .multi-select-option.disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    .shift-alert {
+        margin: 0.55rem 0 0;
+        padding: 0.45rem 0.65rem;
+        font-size: 0.78rem;
+    }
+
+    .citizen-save {
+        width: 12rem;
+        margin-top: 0.45rem;
+        padding-top: 0.45rem;
+        padding-bottom: 0.45rem;
+        font-size: 0.85rem;
+    }
+
+    @@media (max-width: 768px) {
+        .assignment-shell {
+            padding-top: 1rem;
+        }
+
+        .citizen-card-layout {
+            grid-template-columns: 1fr;
+            gap: 0.65rem;
+        }
+
+        .shift-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .citizen-save {
+            width: 100%;
+        }
+    }
+</style>
+
+@code {
+    private bool CanUsePage => AuthService.CurrentUser?.Role is "Admin" or "Vagtansvarlig";
+    private List<EmployeeOption> Employees { get; set; } = [];
+    private List<CitizenCardModel> Citizens { get; set; } = [];
+    private DateTime SelectedDate { get; set; } = DateTime.Today;
+    private string SelectedApartment { get; set; } = string.Empty;
+    private string? LoadErrorMessage { get; set; }
+    private bool IsLoading { get; set; }
+    private string? _lastDepartment;
+
+    private List<CitizenCardModel> FilteredCitizens =>
+        Citizens
+            .Where(citizen => string.IsNullOrWhiteSpace(SelectedApartment) || citizen.ApartmentNumber == SelectedApartment)
+            .ToList();
+
+    private IReadOnlyList<string> ApartmentOptions =>
+        Citizens
+            .Select(citizen => citizen.ApartmentNumber)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(apartment => GetApartmentSortNumber(apartment))
+            .ThenBy(apartment => apartment)
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!CanUsePage)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+            return;
+        }
+
+        _lastDepartment = AuthService.SelectedDepartment;
+        AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+        await LoadBoardAsync();
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+    }
+
+    private async void HandleAuthenticationStateChanged()
+    {
+        if (!CanUsePage)
+        {
+            await InvokeAsync(() => NavigationManager.NavigateTo("/app", replace: true));
+            return;
+        }
+
+        if (string.Equals(_lastDepartment, AuthService.SelectedDepartment, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _lastDepartment = AuthService.SelectedDepartment;
+        await InvokeAsync(LoadBoardAsync);
+    }
+
+    private async Task HandleDateChangedAsync(ChangeEventArgs args)
+    {
+        if (DateTime.TryParse(args.Value?.ToString(), out var selectedDate))
+        {
+            SelectedDate = selectedDate.Date;
+            await LoadBoardAsync();
+        }
+    }
+
+    private void HandleApartmentChanged(ChangeEventArgs args)
+    {
+        SelectedApartment = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void ToggleEmployeeSelection(int citizenId, int shiftId, int employeeId, ChangeEventArgs args)
+    {
+        var shift = GetShift(citizenId, shiftId);
+
+        if (shift is null)
+        {
+            return;
+        }
+
+        var isChecked = args.Value as bool? == true;
+
+        if (isChecked)
+        {
+            if (!shift.SelectedEmployeeIds.Contains(employeeId) && shift.SelectedEmployeeIds.Count < 2)
+            {
+                shift.SelectedEmployeeIds.Add(employeeId);
+            }
+        }
+        else
+        {
+            shift.SelectedEmployeeIds.Remove(employeeId);
+        }
+
+        var citizen = Citizens.FirstOrDefault(item => item.CitizenId == citizenId);
+
+        if (citizen is not null)
+        {
+            citizen.ErrorMessage = null;
+            citizen.SuccessMessage = null;
+        }
+    }
+
+    private async Task SaveCitizenAssignmentsAsync(int citizenId)
+    {
+        var citizen = Citizens.FirstOrDefault(item => item.CitizenId == citizenId);
+
+        if (citizen is null)
+        {
+            return;
+        }
+
+        citizen.IsSaving = true;
+        citizen.ErrorMessage = null;
+        citizen.SuccessMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+
+            foreach (var shift in citizen.Shifts.OrderBy(shift => shift.SortOrder))
+            {
+                var employeeIds = shift.SelectedEmployeeIds
+                    .Distinct()
+                    .OrderBy(id => id)
+                    .ToList();
+
+                if (employeeIds.Count > 0)
+                {
+                    using var shiftEmployeesResponse = await client.GetAsync($"api/shifts/{shift.ShiftId}/employees");
+
+                    if (!shiftEmployeesResponse.IsSuccessStatusCode)
+                    {
+                        citizen.ErrorMessage = await CreateApiErrorMessageAsync(shiftEmployeesResponse, $"Kunne ikke hente vagtens medarbejdere for {shift.Label.ToLowerInvariant()}.");
+                        return;
+                    }
+
+                    var shiftEmployees = await shiftEmployeesResponse.Content.ReadFromJsonAsync<ShiftEmployeesResponse>();
+                    var updatedShiftEmployees = (shiftEmployees?.Employees.Select(employee => employee.EmployeeId).ToList() ?? [])
+                        .Concat(employeeIds)
+                        .Distinct()
+                        .OrderBy(employeeId => employeeId)
+                        .ToList();
+
+                    using var updateShiftResponse = await client.PutAsJsonAsync($"api/shifts/{shift.ShiftId}/employees", new
+                    {
+                        employeeIds = updatedShiftEmployees
+                    });
+
+                    if (!updateShiftResponse.IsSuccessStatusCode)
+                    {
+                        citizen.ErrorMessage = await CreateApiErrorMessageAsync(updateShiftResponse, $"Kunne ikke opdatere vagtens medarbejdere for {shift.Label.ToLowerInvariant()}.");
+                        return;
+                    }
+                }
+
+                using var assignResponse = await client.PutAsJsonAsync($"api/shifts/{shift.ShiftId}/citizens/{citizenId}/employees", new
+                {
+                    employeeIds
+                });
+
+                if (!assignResponse.IsSuccessStatusCode)
+                {
+                    citizen.ErrorMessage = await CreateApiErrorMessageAsync(assignResponse, $"Kunne ikke gemme tilknytningen for {shift.Label.ToLowerInvariant()}.");
+                    return;
+                }
+
+                shift.ExistingEmployeeIds = employeeIds.ToList();
+            }
+
+            citizen.SuccessMessage = "Borgerens vagttilknytninger blev opdateret.";
+        }
+        catch (HttpRequestException)
+        {
+            citizen.ErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            citizen.IsSaving = false;
+        }
+    }
+
+    private async Task LoadBoardAsync()
+    {
+        IsLoading = true;
+        LoadErrorMessage = null;
+
+        try
+        {
+            var departmentId = ResolveDepartmentId(AuthService.SelectedDepartment);
+
+            if (departmentId <= 0)
+            {
+                LoadErrorMessage = "Den valgte afdeling kunne ikke oversættes til et gyldigt id.";
+                return;
+            }
+
+            var client = AuthService.CreateApiClient();
+            var date = Uri.EscapeDataString(SelectedDate.ToString("yyyy-MM-dd"));
+            using var response = await client.GetAsync($"api/citizen-assignments/board?departmentId={departmentId}&date={date}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                LoadErrorMessage = await CreateApiErrorMessageAsync(response, "Kunne ikke hente borgerfordelingen.");
+                return;
+            }
+
+            var board = await response.Content.ReadFromJsonAsync<CitizenAssignmentBoardResponse>();
+
+            if (board is null)
+            {
+                LoadErrorMessage = "Svar fra API'et var ugyldigt.";
+                return;
+            }
+
+            Employees = board.Employees
+                .OrderBy(employee => employee.Name)
+                .ToList();
+
+            Citizens = board.Citizens
+                .OrderBy(citizen => GetApartmentSortNumber(citizen.ApartmentNumber))
+                .ThenBy(citizen => citizen.ApartmentNumber)
+                .ThenBy(citizen => citizen.Name)
+                .Select(citizen => new CitizenCardModel
+                {
+                    CitizenId = citizen.CitizenId,
+                    Name = citizen.Name,
+                    ApartmentNumber = citizen.ApartmentNumber,
+                    Shifts = citizen.Shifts
+                        .OrderBy(shift => shift.ShiftType)
+                        .Select(shift => new CitizenShiftModel
+                        {
+                            ShiftId = shift.ShiftId,
+                            SortOrder = (int)shift.ShiftType,
+                            Label = GetShiftLabel(shift.ShiftType),
+                            ExistingEmployeeIds = shift.AssignedEmployeeIds.ToList(),
+                            SelectedEmployeeIds = shift.AssignedEmployeeIds
+                                .Distinct()
+                                .OrderBy(id => id)
+                                .ToList()
+                        })
+                        .ToList()
+                })
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(SelectedApartment) &&
+                !ApartmentOptions.Contains(SelectedApartment, StringComparer.OrdinalIgnoreCase))
+            {
+                SelectedApartment = string.Empty;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            LoadErrorMessage = "Kunne ikke kontakte API'et.";
+        }
+        finally
+        {
+            IsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private CitizenShiftModel? GetShift(int citizenId, int shiftId)
+    {
+        return Citizens
+            .FirstOrDefault(citizen => citizen.CitizenId == citizenId)?
+            .Shifts
+            .FirstOrDefault(shift => shift.ShiftId == shiftId);
+    }
+
+    private static string GetShiftLabel(int shiftType)
+    {
+        return shiftType switch
+        {
+            1 => "Dagvagt",
+            2 => "Aftenvagt",
+            3 => "Nattevagt",
+            _ => "Ukendt vagt"
+        };
+    }
+
+    private string GetEmployeeName(int employeeId)
+    {
+        return Employees.FirstOrDefault(employee => employee.EmployeeId == employeeId)?.Name ?? $"Medarbejder {employeeId}";
+    }
+
+    private static int GetApartmentSortNumber(string apartmentNumber)
+    {
+        var digits = new string(apartmentNumber.TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var number) ? number : int.MaxValue;
+    }
+
+    private static int ResolveDepartmentId(string? departmentName)
+    {
+        return departmentName?.Trim() switch
+        {
+            "Slottet" => 1,
+            "Skoven" => 2,
+            _ => 0
+        };
+    }
+
+    private static async Task<string> CreateApiErrorMessageAsync(HttpResponseMessage response, string fallbackMessage)
+    {
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            return "Du har ikke adgang til denne handling.";
+        }
+
+        var apiMessage = await response.Content.ReadAsStringAsync();
+
+        return string.IsNullOrWhiteSpace(apiMessage)
+            ? fallbackMessage
+            : apiMessage;
+    }
+
+    private sealed class CitizenAssignmentBoardResponse
+    {
+        public List<EmployeeOption> Employees { get; set; } = [];
+        public List<CitizenBoardItemResponse> Citizens { get; set; } = [];
+    }
+
+    private sealed class CitizenBoardItemResponse
+    {
+        public int CitizenId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public List<CitizenShiftResponse> Shifts { get; set; } = [];
+    }
+
+    private sealed class CitizenShiftResponse
+    {
+        public int ShiftId { get; set; }
+        public int ShiftType { get; set; }
+        public List<int> AssignedEmployeeIds { get; set; } = [];
+    }
+
+    private sealed class EmployeeOption
+    {
+        public int EmployeeId { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ShiftEmployeesResponse
+    {
+        public List<EmployeeOption> Employees { get; set; } = [];
+    }
+
+    private sealed class CitizenCardModel
+    {
+        public int CitizenId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public List<CitizenShiftModel> Shifts { get; set; } = [];
+        public bool IsSaving { get; set; }
+        public string? ErrorMessage { get; set; }
+        public string? SuccessMessage { get; set; }
+    }
+
+    private sealed class CitizenShiftModel
+    {
+        public int ShiftId { get; set; }
+        public int SortOrder { get; set; }
+        public string Label { get; set; } = string.Empty;
+        public List<int> SelectedEmployeeIds { get; set; } = [];
+        public List<int> ExistingEmployeeIds { get; set; } = [];
+    }
+}
