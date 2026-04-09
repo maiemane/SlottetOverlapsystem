@@ -9,6 +9,7 @@ using Slottet.Application.Services.Audit;
 using Slottet.Application.Services.Auth;
 using Slottet.Application.Services.Employees;
 using Slottet.Application.Services.Citizens;
+using Slottet.Application.Services.Departments;
 using Slottet.Application.Services.Medications;
 using Slottet.Application.Services.Overlap;
 using Slottet.Application.Services.ShiftDefinitions;
@@ -88,6 +89,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<ICreateCitizenService, CreateCitizenService>();
 builder.Services.AddScoped<ICreateCitizenFixedMedicationService, CreateCitizenFixedMedicationService>();
@@ -105,6 +107,7 @@ builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationSer
 
 builder.Services.AddScoped<ICitizenCreationRepository, CitizenCreationRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<IMedicationRegistrationRepository, MedicationRegistrationRepository>();
 builder.Services.AddScoped<IOverlapOverviewRepository, OverlapOverviewRepository>();
