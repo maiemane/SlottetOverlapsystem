@@ -15,6 +15,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<CitizenAssignment> CitizenAssignments => Set<CitizenAssignment>();
+    public DbSet<CitizenFixedMedication> CitizenFixedMedications => Set<CitizenFixedMedication>();
     public DbSet<MedicinRegistration> MedicinRegistrations => Set<MedicinRegistration>();
     public DbSet<Phone> Phones => Set<Phone>();
     public DbSet<PhoneAllocation> PhoneAllocations => Set<PhoneAllocation>();
@@ -40,11 +41,27 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("Citizen");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.ApartmentNumber).IsRequired().HasMaxLength(50);
 
             entity.HasOne<Department>()
                 .WithMany()
                 .HasForeignKey(x => x.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CitizenFixedMedication>(entity =>
+        {
+            entity.ToTable("CitizenFixedMedication");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.ScheduledTime).IsRequired();
+            entity.HasIndex(x => new { x.CitizenId, x.ShiftType });
+
+            entity.HasOne<Citizen>()
+                .WithMany()
+                .HasForeignKey(x => x.CitizenId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Employee>(entity =>
@@ -105,6 +122,11 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ShiftId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<CitizenFixedMedication>()
+                .WithMany()
+                .HasForeignKey(x => x.CitizenFixedMedicationId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<Phone>(entity =>

@@ -6,67 +6,64 @@ using Slottet.Domain.Enums;
 
 namespace Slottet.Application.Tests;
 
-public class CreateCitizenServiceTests
+public class CreateCitizenFixedMedicationServiceTests
 {
     [Fact]
     public async Task CreateAsync_Returns_success_when_request_is_valid()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CreateCitizenService(repository);
+        var sut = new CreateCitizenFixedMedicationService(repository);
 
-        var result = await sut.CreateAsync(new CreateCitizenRequest
+        var result = await sut.CreateAsync(1, new CreateCitizenFixedMedicationRequest
         {
-            Name = "Anna Jensen",
-            ApartmentNumber = "12A",
-            TrafficLight = TrafficLight.Grøn,
-            DepartmentId = 1
+            Name = "Panodil",
+            Description = "2 tabletter",
+            ScheduledTime = new TimeOnly(8, 0),
+            ShiftType = ShiftType.Dagvagt
         }, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Citizen);
-        Assert.Equal("Anna Jensen", result.Citizen!.Name);
-        Assert.Equal("12A", result.Citizen.ApartmentNumber);
-        Assert.Equal(TrafficLight.Grøn, result.Citizen.TrafficLight);
-        Assert.Equal(1, result.Citizen.DepartmentId);
-        Assert.True(result.Citizen.IsActive);
+        Assert.NotNull(result.FixedMedication);
+        Assert.Equal(1, result.FixedMedication!.CitizenId);
+        Assert.Equal("Panodil", result.FixedMedication.Name);
+        Assert.Equal(ShiftType.Dagvagt, result.FixedMedication.ShiftType);
+        Assert.True(result.FixedMedication.IsActive);
     }
 
     [Fact]
-    public async Task CreateAsync_Returns_failure_when_department_does_not_exist()
+    public async Task CreateAsync_Returns_failure_when_citizen_does_not_exist()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CreateCitizenService(repository);
+        var sut = new CreateCitizenFixedMedicationService(repository);
 
-        var result = await sut.CreateAsync(new CreateCitizenRequest
+        var result = await sut.CreateAsync(99, new CreateCitizenFixedMedicationRequest
         {
-            Name = "Anna Jensen",
-            ApartmentNumber = "12A",
-            TrafficLight = TrafficLight.Grøn,
-            DepartmentId = 99
+            Name = "Panodil",
+            ScheduledTime = new TimeOnly(8, 0),
+            ShiftType = ShiftType.Dagvagt
         }, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("DepartmentNotFound", result.Error);
-        Assert.Null(result.Citizen);
+        Assert.Equal("CitizenNotFound", result.Error);
+        Assert.Null(result.FixedMedication);
     }
 
     [Fact]
     public async Task CreateAsync_Returns_failure_when_request_is_invalid()
     {
         var repository = new FakeCitizenCreationRepository();
-        var sut = new CreateCitizenService(repository);
+        var sut = new CreateCitizenFixedMedicationService(repository);
 
-        var result = await sut.CreateAsync(new CreateCitizenRequest
+        var result = await sut.CreateAsync(1, new CreateCitizenFixedMedicationRequest
         {
             Name = "",
-            ApartmentNumber = "",
-            DepartmentId = 0,
-            TrafficLight = (TrafficLight)99
+            ScheduledTime = new TimeOnly(8, 0),
+            ShiftType = (ShiftType)99
         }, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("InvalidRequest", result.Error);
-        Assert.Null(result.Citizen);
+        Assert.Null(result.FixedMedication);
     }
 
     private sealed class FakeCitizenCreationRepository : ICitizenCreationRepository

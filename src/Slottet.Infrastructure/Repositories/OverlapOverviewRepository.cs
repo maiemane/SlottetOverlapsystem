@@ -36,6 +36,22 @@ public sealed class OverlapOverviewRepository : IOverlapOverviewRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizensAndShiftTypeAsync(
+        IReadOnlyCollection<int> citizenIds,
+        Domain.Enums.ShiftType shiftType,
+        CancellationToken cancellationToken = default)
+    {
+        if (citizenIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _dbContext.CitizenFixedMedications
+            .AsNoTracking()
+            .Where(medication => citizenIds.Contains(medication.CitizenId) && medication.ShiftType == shiftType && medication.IsActive)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<MedicinRegistration>> GetMedicationsByShiftAsync(int shiftId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.MedicinRegistrations
