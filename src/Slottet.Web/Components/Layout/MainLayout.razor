@@ -46,13 +46,22 @@
                 </button>
 
                 <nav class="admin-nav @(IsSidebarOpen ? string.Empty : "admin-nav-hidden")">
-                    <NavLink class="admin-nav-link" href="/app" Match="NavLinkMatch.All">Overlapssystem</NavLink>
-                    <NavLink class="admin-nav-link" href="/app/borger-fordeling">Borgerfordeling</NavLink>
+                    <div class="admin-nav-main">
+                        <NavLink class="admin-nav-link" href="/app" Match="NavLinkMatch.All">Overlapssystem</NavLink>
+                        <NavLink class="admin-nav-link" href="/app/borger-fordeling">Borgerfordeling</NavLink>
+                        @if (IsAdmin)
+                        {
+                            <NavLink class="admin-nav-link" href="/admin/opret-borger">Opret Borger</NavLink>
+                            <NavLink class="admin-nav-link" href="/admin/opret-medarbejder">Opret Medarbejder</NavLink>
+                            <NavLink class="admin-nav-link" href="/admin/historik">Søg i historik</NavLink>
+                        }
+                    </div>
+
                     @if (IsAdmin)
                     {
-                        <NavLink class="admin-nav-link" href="/admin/opret-borger">Opret Borger</NavLink>
-                        <NavLink class="admin-nav-link" href="/admin/opret-medarbejder">Opret Medarbejder</NavLink>
-                        <NavLink class="admin-nav-link" href="/admin/historik">Søg i historik</NavLink>
+                        <div class="admin-nav-bottom">
+                            <NavLink class="admin-nav-link" href="/admin/konfiguration">Konfiguration</NavLink>
+                        </div>
                     }
                 </nav>
             </aside>

@@ -1,0 +1,300 @@
+@page "/admin/konfiguration"
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+
+<PageTitle>Konfiguration</PageTitle>
+
+@if (IsAdmin)
+{
+    <section class="config-shell">
+        <header class="config-header">
+            <div>
+                <h1>Konfiguration</h1>
+                <p>Fælles opsætning af systemet. Siden er bygget som en lang konfigurationsside med sektioner.</p>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="alert @(HasValidationError ? "alert-danger" : "alert-success")" role="alert">@StatusMessage</div>
+        }
+
+        <section class="config-card">
+            <div class="config-card-header">
+                <div>
+                    <h2>Vagtkonfiguration</h2>
+                    <p class="config-muted">Nattevagt kan krydse midnat (fx 23:00 til 07:00).</p>
+                </div>
+                <div class="config-actions">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetToDefaults">Nulstil</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveChangesAsync">Gem ændringer</button>
+                </div>
+            </div>
+
+            <h3 class="config-subheading">Tidsintervaller</h3>
+
+            <div class="config-grid">
+                @for (var index = 0; index < ShiftRows.Count; index++)
+                {
+                    var row = ShiftRows[index];
+                    <div class="config-row">
+                        <strong>@row.Label</strong>
+                        <div class="config-row-fields">
+                            <label>
+                                <span>Fra</span>
+                                <input type="time" value="@row.StartTimeText" @onchange="args => HandleStartChanged(index, args)" />
+                            </label>
+                            <label>
+                                <span>Til</span>
+                                <input type="time" value="@row.EndTimeText" @onchange="args => HandleEndChanged(index, args)" />
+                            </label>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    </section>
+}
+
+<style>
+    .config-shell {
+        padding: 2rem 0 3rem;
+        color: #19352c;
+        display: grid;
+        gap: 1rem;
+    }
+
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .config-header h1 {
+        margin: 0;
+    }
+
+    .config-header p {
+        margin: 0.35rem 0 0;
+        color: #5d7469;
+    }
+
+    .config-card {
+        border: 1px solid #d6e2da;
+        border-radius: 1rem;
+        background: #fff;
+        padding: 1rem;
+        box-shadow: 0 8px 20px rgba(34, 63, 50, 0.06);
+    }
+
+    .config-card h2 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    .config-card-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.9rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .config-actions {
+        display: flex;
+        gap: 0.6rem;
+    }
+
+    .config-muted {
+        margin: 0.4rem 0 1rem;
+        color: #60786c;
+    }
+
+    .config-subheading {
+        margin: 0 0 0.75rem;
+        font-size: 0.95rem;
+        color: #2f4f42;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .config-grid {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .config-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        border: 1px solid #e0e9e4;
+        border-radius: 0.75rem;
+        background: #f8fbf9;
+    }
+
+    .config-row-fields {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .config-row label,
+    .config-row span {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #486257;
+    }
+
+    .config-row input {
+        padding: 0.45rem 0.6rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.65rem;
+        background: #fff;
+    }
+
+    @@media (max-width: 640px) {
+        .config-row {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+@code {
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+
+    private List<ShiftConfigRow> ShiftRows { get; set; } = CreateDefaultRows();
+    private string? StatusMessage { get; set; }
+    private bool HasValidationError { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!IsAdmin)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+        }
+    }
+
+    private void HandleStartChanged(int index, ChangeEventArgs args)
+    {
+        ShiftRows[index].StartTimeText = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void HandleEndChanged(int index, ChangeEventArgs args)
+    {
+        ShiftRows[index].EndTimeText = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private Task SaveChangesAsync()
+    {
+        if (!TryBuildResolvedRows(out var rows, out var validationMessage))
+        {
+            HasValidationError = true;
+            StatusMessage = validationMessage;
+            return Task.CompletedTask;
+        }
+
+        var overlapPair = FindOverlap(rows);
+
+        if (overlapPair is not null)
+        {
+            HasValidationError = true;
+            StatusMessage = $"Intervaller overlapper mellem {overlapPair.Value.First} og {overlapPair.Value.Second}.";
+            return Task.CompletedTask;
+        }
+
+        HasValidationError = false;
+        StatusMessage = "Frontend-konfiguration opdateret. API-kobling til gemning tilføjes når backend er klar.";
+        return Task.CompletedTask;
+    }
+
+    private void ResetToDefaults()
+    {
+        ShiftRows = CreateDefaultRows();
+        HasValidationError = false;
+        StatusMessage = "Standardintervaller er gendannet i formularen.";
+    }
+
+    private bool TryBuildResolvedRows(out List<ResolvedShiftRow> rows, out string? error)
+    {
+        rows = new List<ResolvedShiftRow>(ShiftRows.Count);
+
+        foreach (var row in ShiftRows)
+        {
+            if (!TimeOnly.TryParse(row.StartTimeText, out var startTime))
+            {
+                error = $"Ugyldigt starttidspunkt for {row.Label}.";
+                return false;
+            }
+
+            if (!TimeOnly.TryParse(row.EndTimeText, out var endTime))
+            {
+                error = $"Ugyldigt sluttidspunkt for {row.Label}.";
+                return false;
+            }
+
+            if (startTime == endTime)
+            {
+                error = $"{row.Label} kan ikke have samme start- og sluttid.";
+                return false;
+            }
+
+            rows.Add(new ResolvedShiftRow(row.Label, startTime, endTime));
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static (string First, string Second)? FindOverlap(IReadOnlyList<ResolvedShiftRow> rows)
+    {
+        for (var minute = 0; minute < 24 * 60; minute++)
+        {
+            var candidate = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(minute));
+            var matches = rows.Where(entry => TimeInRange(candidate, entry.StartTime, entry.EndTime)).ToList();
+            if (matches.Count > 1)
+            {
+                return (matches[0].Label, matches[1].Label);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TimeInRange(TimeOnly value, TimeOnly start, TimeOnly end)
+    {
+        return start <= end
+            ? value >= start && value < end
+            : value >= start || value < end;
+    }
+
+    private static List<ShiftConfigRow> CreateDefaultRows()
+    {
+        return
+        [
+            new ShiftConfigRow("Dagvagt", "07:00", "15:00"),
+            new ShiftConfigRow("Aftenvagt", "15:00", "23:00"),
+            new ShiftConfigRow("Nattevagt", "23:00", "07:00")
+        ];
+    }
+
+    private sealed class ShiftConfigRow
+    {
+        public ShiftConfigRow(string label, string startTimeText, string endTimeText)
+        {
+            Label = label;
+            StartTimeText = startTimeText;
+            EndTimeText = endTimeText;
+        }
+
+        public string Label { get; }
+        public string StartTimeText { get; set; }
+        public string EndTimeText { get; set; }
+    }
+
+    private sealed record ResolvedShiftRow(string Label, TimeOnly StartTime, TimeOnly EndTime);
+}
