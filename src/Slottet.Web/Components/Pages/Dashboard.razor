@@ -70,6 +70,8 @@
                             <span>Hændelser</span>
                             <strong>@citizen.SpecialEventsCount</strong>
                         </p>
+                        <p class="overlap-card-latest-event-label">Seneste hændelse</p>
+                        <p class="overlap-card-latest-event" title="@citizen.LatestSpecialEventDescription">@citizen.LatestSpecialEventDescription</p>
                     </div>
 
                     <div class="overlap-card-spacer"></div>
@@ -193,21 +195,45 @@
 
                     <section class="overlap-modal-section">
                         <h3 class="overlap-modal-section-title">Særlige hændelser</h3>
+                        <div class="overlap-event-toolbar">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    @onclick="AddSpecialEvent"
+                                    disabled="@(IsSaving || !CanManageSpecialEvents)">
+                                Tilføj hændelse
+                            </button>
+                        </div>
                         @if (SelectedCitizen.SpecialEvents.Count == 0)
                         {
                             <p class="mb-0">Ingen hændelser på denne vagt.</p>
                         }
                         else
                         {
-                            <ul class="overlap-event-list">
+                            <div class="overlap-event-editor-list">
                                 @foreach (var specialEvent in SelectedCitizen.SpecialEvents.OrderByDescending(item => item.EventTime))
                                 {
-                                    <li>
-                                        <strong>@specialEvent.EventTime.ToString("dd-MM HH:mm")</strong>
-                                        <span>@specialEvent.Description</span>
-                                    </li>
+                                    <div class="overlap-event-editor-item">
+                                        <InputDate TValue="DateTime"
+                                                   Type="InputDateType.DateTimeLocal"
+                                                   class="form-control"
+                                                   @bind-Value="specialEvent.EventTime"
+                                                   disabled="@(IsSaving || !CanManageSpecialEvents)" />
+                                        <InputText class="form-control"
+                                                   @bind-Value="specialEvent.Description"
+                                                   disabled="@(IsSaving || !CanManageSpecialEvents)" />
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RemoveSpecialEvent(specialEvent)"
+                                                disabled="@(IsSaving || !CanManageSpecialEvents)">
+                                            Slet
+                                        </button>
+                                    </div>
                                 }
-                            </ul>
+                            </div>
+                        }
+                        @if (!CanManageSpecialEvents)
+                        {
+                            <small class="text-muted">Din rolle kan ikke gemme særlige hændelser.</small>
                         }
                     </section>
                 </div>
@@ -313,7 +339,7 @@
     .overlap-card {
         position: relative;
         width: 320px;
-        height: 270px;
+        min-height: 285px;
         padding: 1rem;
         border: 1px solid #d8e2dc;
         border-radius: 1rem;
@@ -395,6 +421,26 @@
 
     .overlap-card-line strong.overlap-next-medication-overdue {
         color: #b42318;
+    }
+
+    .overlap-card-latest-event-label {
+        margin: 0.2rem 0 0;
+        color: #647b70;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .overlap-card-latest-event {
+        margin: 0;
+        font-size: 0.78rem;
+        color: #3c584d;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
     .overlap-card-spacer {
@@ -561,20 +607,29 @@
         font-size: 0.78rem;
     }
 
-    .overlap-event-list {
-        margin: 0;
-        padding-left: 1rem;
-        display: grid;
-        gap: 0.4rem;
+    .overlap-event-toolbar {
+        display: flex;
+        justify-content: flex-end;
     }
 
-    .overlap-event-list li {
+    .overlap-event-editor-list {
         display: grid;
-        gap: 0.1rem;
+        gap: 0.55rem;
     }
 
-    .overlap-event-list span {
-        color: #4f6a5f;
+    .overlap-event-editor-item {
+        display: grid;
+        grid-template-columns: minmax(0, 190px) minmax(0, 1fr) auto;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.65rem;
+        border-radius: 0.65rem;
+        background: #f6faf8;
+        border: 1px solid #dbe6e0;
+    }
+
+    .overlap-event-editor-item .form-control {
+        min-width: 0;
     }
 
     @@media (max-width: 840px) {
@@ -584,6 +639,10 @@
 
         .overlap-card {
             width: 100%;
+        }
+
+        .overlap-event-editor-item {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -614,6 +673,7 @@
 
     private bool CanEditTrafficLight => AuthService.CurrentUser?.Role == "Admin";
     private bool CanRegisterMedication => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
+    private bool CanManageSpecialEvents => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
 
     protected override void OnInitialized()
     {
@@ -783,9 +843,12 @@
                 {
                     Id = specialEvent.Id,
                     Description = specialEvent.Description,
-                    EventTime = specialEvent.EventTime
+                    EventTime = specialEvent.EventTime,
+                    OriginalDescription = specialEvent.Description,
+                    OriginalEventTime = specialEvent.EventTime
                 })
-                .ToList()
+                .ToList(),
+            DeletedSpecialEventIds = []
         };
     }
 
@@ -810,6 +873,35 @@
 
         SelectedCitizen.TrafficLight = trafficLight;
         return Task.CompletedTask;
+    }
+
+    private void AddSpecialEvent()
+    {
+        if (SelectedCitizen is null || IsSaving || !CanManageSpecialEvents)
+        {
+            return;
+        }
+
+        SelectedCitizen.SpecialEvents.Add(new SpecialEventItemModel
+        {
+            Description = string.Empty,
+            EventTime = DateTime.Now
+        });
+    }
+
+    private void RemoveSpecialEvent(SpecialEventItemModel specialEvent)
+    {
+        if (SelectedCitizen is null || IsSaving || !CanManageSpecialEvents)
+        {
+            return;
+        }
+
+        if (specialEvent.Id > 0)
+        {
+            SelectedCitizen.DeletedSpecialEventIds.Add(specialEvent.Id);
+        }
+
+        SelectedCitizen.SpecialEvents.Remove(specialEvent);
     }
 
     private async Task SaveSelectedCitizenChangesAsync()
@@ -914,6 +1006,85 @@
                 }
             }
 
+            if (!CanManageSpecialEvents)
+            {
+                errors.Add("Din rolle kan ikke gemme særlige hændelser.");
+            }
+            else if (Overview.ShiftId <= 0)
+            {
+                errors.Add("Vagt-id mangler. Kunne ikke gemme særlige hændelser.");
+            }
+            else if (errors.Count == 0)
+            {
+                if (SelectedCitizen.SpecialEvents.Any(specialEvent => string.IsNullOrWhiteSpace(specialEvent.Description)))
+                {
+                    errors.Add("Alle særlige hændelser skal have en beskrivelse.");
+                }
+                else
+                {
+                    foreach (var specialEventId in SelectedCitizen.DeletedSpecialEventIds.Distinct())
+                    {
+                        using var deleteSpecialEventResponse = await client.DeleteAsync(
+                            $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/special-events/{specialEventId}");
+
+                        if (!deleteSpecialEventResponse.IsSuccessStatusCode)
+                        {
+                            var apiMessage = await deleteSpecialEventResponse.Content.ReadAsStringAsync();
+                            errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                                ? "Kunne ikke slette en særlig hændelse."
+                                : apiMessage);
+                            break;
+                        }
+                    }
+
+                    if (errors.Count == 0)
+                    {
+                        foreach (var specialEvent in SelectedCitizen.SpecialEvents.Where(specialEvent => specialEvent.Id <= 0))
+                        {
+                            using var createSpecialEventResponse = await client.PostAsJsonAsync(
+                                $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/special-events",
+                                new
+                                {
+                                    description = specialEvent.Description.Trim(),
+                                    eventTime = specialEvent.EventTime
+                                });
+
+                            if (!createSpecialEventResponse.IsSuccessStatusCode)
+                            {
+                                var apiMessage = await createSpecialEventResponse.Content.ReadAsStringAsync();
+                                errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                                    ? "Kunne ikke oprette en særlig hændelse."
+                                    : apiMessage);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (errors.Count == 0)
+                    {
+                        foreach (var specialEvent in SelectedCitizen.SpecialEvents.Where(specialEvent => specialEvent.Id > 0 && specialEvent.HasChanges()))
+                        {
+                            using var updateSpecialEventResponse = await client.PutAsJsonAsync(
+                                $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/special-events/{specialEvent.Id}",
+                                new
+                                {
+                                    description = specialEvent.Description.Trim(),
+                                    eventTime = specialEvent.EventTime
+                                });
+
+                            if (!updateSpecialEventResponse.IsSuccessStatusCode)
+                            {
+                                var apiMessage = await updateSpecialEventResponse.Content.ReadAsStringAsync();
+                                errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                                    ? "Kunne ikke opdatere en særlig hændelse."
+                                    : apiMessage);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             if (errors.Count > 0)
             {
                 SaveErrorMessage = string.Join(" ", errors.Distinct(StringComparer.OrdinalIgnoreCase));
@@ -974,6 +1145,10 @@
                     .FirstOrDefault(medication => !medication.IsRegistered && medication.ScheduledTime > now);
                 var nextMedication = overdueMedication ?? nextUpcomingMedication;
                 var isNextMedicationOverdue = overdueMedication is not null;
+                var latestSpecialEventDescription = citizen.SpecialEvents
+                    .OrderByDescending(specialEvent => specialEvent.EventTime)
+                    .Select(specialEvent => specialEvent.Description)
+                    .FirstOrDefault();
 
                 return new CitizenCardModel
                 {
@@ -992,7 +1167,10 @@
                         ? "-"
                         : $"{nextMedication.ScheduledTime:HH:mm} {nextMedication.Name}",
                     IsNextMedicationOverdue = isNextMedicationOverdue,
-                    SpecialEventsCount = citizen.SpecialEvents.Count
+                    SpecialEventsCount = citizen.SpecialEvents.Count,
+                    LatestSpecialEventDescription = string.IsNullOrWhiteSpace(latestSpecialEventDescription)
+                        ? "Ingen hændelser"
+                        : latestSpecialEventDescription
                 };
             })
             .ToList();
@@ -1082,6 +1260,7 @@
         public string NextMedicationLabel { get; set; } = "-";
         public bool IsNextMedicationOverdue { get; set; }
         public int SpecialEventsCount { get; set; }
+        public string LatestSpecialEventDescription { get; set; } = "Ingen hændelser";
     }
 
     private sealed class CitizenDetailModel
@@ -1093,6 +1272,7 @@
         public int OriginalTrafficLight { get; set; }
         public List<MedicationItemModel> Medications { get; set; } = [];
         public List<SpecialEventItemModel> SpecialEvents { get; set; } = [];
+        public List<int> DeletedSpecialEventIds { get; set; } = [];
     }
 
     private sealed class MedicationItemModel
@@ -1113,6 +1293,17 @@
         public int Id { get; set; }
         public string Description { get; set; } = string.Empty;
         public DateTime EventTime { get; set; }
+        public string OriginalDescription { get; set; } = string.Empty;
+        public DateTime OriginalEventTime { get; set; }
+
+        public bool HasChanges()
+        {
+            return !string.Equals(
+                       (Description ?? string.Empty).Trim(),
+                       (OriginalDescription ?? string.Empty).Trim(),
+                       StringComparison.Ordinal)
+                   || EventTime != OriginalEventTime;
+        }
     }
 
     private sealed class ShiftLookupResponse
