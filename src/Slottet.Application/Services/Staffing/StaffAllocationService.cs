@@ -1,5 +1,6 @@
 using Slottet.Application.DTOs.Staffing;
 using Slottet.Application.Interfaces;
+using Slottet.Domain.Enums;
 
 namespace Slottet.Application.Services.Staffing;
 
@@ -65,6 +66,38 @@ public sealed class StaffAllocationService : IStaffAllocationService
                         .ToList()
                 })
                 .ToList()
+        };
+    }
+
+    public async Task<ShiftLookupDto?> GetShiftByDepartmentDateAndTypeAsync(int departmentId, DateTime date, ShiftType shiftType, CancellationToken cancellationToken = default)
+    {
+        if (departmentId <= 0 || !Enum.IsDefined(typeof(ShiftType), shiftType))
+        {
+            return null;
+        }
+
+        var department = await _staffAllocationRepository.GetDepartmentByIdAsync(departmentId, cancellationToken);
+
+        if (department is null)
+        {
+            return null;
+        }
+
+        var targetDate = date.Date;
+        var shifts = await _staffAllocationRepository.EnsureShiftsForDepartmentAndDateAsync(departmentId, targetDate, cancellationToken);
+        var shift = shifts.FirstOrDefault(candidate => candidate.Type == shiftType);
+
+        if (shift is null)
+        {
+            return null;
+        }
+
+        return new ShiftLookupDto
+        {
+            ShiftId = shift.Id,
+            DepartmentId = shift.DepartmentId,
+            Date = shift.Date,
+            ShiftType = shift.Type
         };
     }
 
