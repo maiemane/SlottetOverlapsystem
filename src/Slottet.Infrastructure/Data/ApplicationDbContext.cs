@@ -24,6 +24,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ShiftTask> ShiftTasks => Set<ShiftTask>();
     public DbSet<SpecialEvent> SpecialEvents => Set<SpecialEvent>();
     public DbSet<ShiftEmployee> ShiftEmployees => Set<ShiftEmployee>();
+    public DbSet<ShiftDefinition> ShiftDefinitions => Set<ShiftDefinition>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -83,6 +84,15 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ShiftDefinition>(entity =>
+        {
+            entity.ToTable("ShiftDefinition");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.StartTime).IsRequired();
+            entity.Property(x => x.EndTime).IsRequired();
+            entity.HasIndex(x => x.ShiftType).IsUnique();
         });
 
         modelBuilder.Entity<CitizenAssignment>(entity =>

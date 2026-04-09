@@ -108,6 +108,7 @@ public sealed class CitizensController : ControllerBase
             {
                 "InvalidRequest" => BadRequest("Navn og gyldig vagttype er paakraevet."),
                 "CitizenNotFound" => NotFound("Borgeren blev ikke fundet."),
+                "ShiftDefinitionNotFound" => BadRequest("Ingen aktiv vagtdefinition matcher medicinens klokkeslaet."),
                 _ => StatusCode(StatusCodes.Status500InternalServerError)
             };
         }
@@ -162,8 +163,9 @@ public sealed class CitizensController : ControllerBase
         {
             return result.Error switch
             {
-                "InvalidRequest" => BadRequest("Navn og gyldig vagttype er paakraevet."),
+                "InvalidRequest" => BadRequest("Navn og gyldig medicinplan er paakraevet."),
                 "FixedMedicationNotFound" => NotFound("Fast medicin-planen blev ikke fundet."),
+                "ShiftDefinitionNotFound" => BadRequest("Ingen aktiv vagtdefinition matcher medicinens klokkeslaet."),
                 _ => StatusCode(StatusCodes.Status500InternalServerError)
             };
         }
