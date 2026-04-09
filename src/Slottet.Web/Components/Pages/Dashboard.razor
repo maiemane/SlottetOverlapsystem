@@ -27,7 +27,7 @@
                         title="Opret vagtopgave"
                         aria-label="Opret vagtopgave"
                         @onclick="OpenCreateShiftTaskModal"
-                        disabled="@(IsShiftTasksLoading || IsCreatingShiftTask || CurrentShiftId is null)">
+                        disabled="@(IsShiftTasksLoading || IsCreatingShiftTask || !DepartmentIds.ContainsKey(AuthService.SelectedDepartment))">
                     +
                 </button>
             </div>
@@ -174,6 +174,27 @@
                     {
                         <div class="alert alert-danger mb-0" role="alert">@CreateShiftTaskErrorMessage</div>
                     }
+                    <div class="overlap-modal-field">
+                        <label for="create-shift-task-shift">Vagt</label>
+                        <InputSelect id="create-shift-task-shift"
+                                     class="form-select"
+                                     @bind-Value="NewShiftTaskShiftType"
+                                     disabled="@(IsCreatingShiftTask || NewShiftTaskForAllShifts)">
+                            @foreach (var option in ShiftTypeOptions)
+                            {
+                                <option value="@option.Value">@option.Label</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-check">
+                        <InputCheckbox id="create-shift-task-all-shifts"
+                                       class="form-check-input"
+                                       @bind-Value="NewShiftTaskForAllShifts"
+                                       disabled="@IsCreatingShiftTask" />
+                        <label class="form-check-label" for="create-shift-task-all-shifts">
+                            Vis på alle vagter
+                        </label>
+                    </div>
                     <div class="overlap-modal-field">
                         <label for="create-shift-task-description">Beskrivelse</label>
                         <InputText id="create-shift-task-description"
@@ -876,6 +897,13 @@
         new(3, "Rød")
     ];
 
+    private static readonly IReadOnlyList<ShiftTypeOption> ShiftTypeOptions =
+    [
+        new(1, "Dag"),
+        new(2, "Aften"),
+        new(3, "Nat")
+    ];
+
     private CitizenOverviewResponse? Overview { get; set; }
     private List<CitizenCardModel> CitizenCards { get; set; } = [];
     private List<ShiftTaskItemModel> ShiftTasks { get; set; } = [];
@@ -892,6 +920,8 @@
     private bool IsCreatingShiftTask { get; set; }
     private HashSet<int> UpdatingShiftTaskIds { get; } = [];
     private bool IsSaving { get; set; }
+    private int NewShiftTaskShiftType { get; set; } = 1;
+    private bool NewShiftTaskForAllShifts { get; set; }
     private string NewShiftTaskDescription { get; set; } = string.Empty;
     private DateTime SelectedDate { get; set; } = DateTime.Today;
 
@@ -1351,6 +1381,8 @@
         IsCreateShiftTaskModalOpen = false;
         IsCreatingShiftTask = false;
         UpdatingShiftTaskIds.Clear();
+        NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
+        NewShiftTaskForAllShifts = false;
         NewShiftTaskDescription = string.Empty;
         SelectedCitizen = null;
         LoadErrorMessage = null;
@@ -1398,12 +1430,14 @@
 
     private void OpenCreateShiftTaskModal()
     {
-        if (CurrentShiftId is null || IsShiftTasksLoading || IsCreatingShiftTask)
+        if (!DepartmentIds.ContainsKey(AuthService.SelectedDepartment) || IsShiftTasksLoading || IsCreatingShiftTask)
         {
             return;
         }
 
         NewShiftTaskDescription = string.Empty;
+        NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
+        NewShiftTaskForAllShifts = false;
         CreateShiftTaskErrorMessage = null;
         IsCreateShiftTaskModalOpen = true;
     }
@@ -1418,13 +1452,15 @@
         IsCreateShiftTaskModalOpen = false;
         CreateShiftTaskErrorMessage = null;
         NewShiftTaskDescription = string.Empty;
+        NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
+        NewShiftTaskForAllShifts = false;
     }
 
     private async Task CreateShiftTaskAsync()
     {
-        if (CurrentShiftId is null)
+        if (!DepartmentIds.TryGetValue(AuthService.SelectedDepartment, out var departmentId))
         {
-            CreateShiftTaskErrorMessage = "Kunne ikke finde den aktuelle vagt.";
+            CreateShiftTaskErrorMessage = "Kunne ikke finde den aktuelle afdeling.";
             return;
         }
 
@@ -1440,22 +1476,68 @@
         try
         {
             using var client = AuthService.CreateApiClient();
-            using var response = await client.PostAsJsonAsync(
-                $"api/shifts/{CurrentShiftId.Value}/tasks",
-                new { description = NewShiftTaskDescription.Trim() });
+            var requestedShiftTypes = NewShiftTaskForAllShifts
+                ? ShiftTypeOptions.Select(option => option.Value).Distinct().ToList()
+                : [NewShiftTaskShiftType];
+            var resolvedShiftIds = new List<int>();
 
-            if (!response.IsSuccessStatusCode)
+            foreach (var shiftType in requestedShiftTypes)
             {
-                var apiMessage = await response.Content.ReadAsStringAsync();
-                CreateShiftTaskErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
-                    ? "Kunne ikke oprette vagtopgaven."
-                    : apiMessage;
+                using var shiftResponse = await client.GetAsync(
+                    $"api/shifts/resolve?departmentId={departmentId}&date={SelectedDate:yyyy-MM-dd}&shiftType={shiftType}");
+
+                if (!shiftResponse.IsSuccessStatusCode)
+                {
+                    continue;
+                }
+
+                var resolvedShift = await shiftResponse.Content.ReadFromJsonAsync<ShiftLookupResponse>();
+
+                if (resolvedShift?.ShiftId > 0)
+                {
+                    resolvedShiftIds.Add(resolvedShift.ShiftId);
+                }
+            }
+
+            var targetShiftIds = resolvedShiftIds.Distinct().ToList();
+
+            if (targetShiftIds.Count == 0)
+            {
+                CreateShiftTaskErrorMessage = "Kunne ikke finde vagt(er) for valget.";
                 return;
             }
 
-            await LoadShiftTasksAsync(client, CurrentShiftId.Value);
+            var createdShiftIds = new List<int>();
+
+            foreach (var targetShiftId in targetShiftIds)
+            {
+                using var response = await client.PostAsJsonAsync(
+                    $"api/shifts/{targetShiftId}/tasks",
+                    new { description = NewShiftTaskDescription.Trim() });
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    continue;
+                }
+
+                createdShiftIds.Add(targetShiftId);
+            }
+
+            if (createdShiftIds.Count == 0)
+            {
+                CreateShiftTaskErrorMessage = "Kunne ikke oprette vagtopgaven.";
+                return;
+            }
+
+            if (CurrentShiftId is not null && createdShiftIds.Contains(CurrentShiftId.Value))
+            {
+                await LoadShiftTasksAsync(client, CurrentShiftId.Value);
+            }
+
             IsCreateShiftTaskModalOpen = false;
             NewShiftTaskDescription = string.Empty;
+            NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
+            NewShiftTaskForAllShifts = false;
         }
         catch (TaskCanceledException)
         {
@@ -1640,6 +1722,7 @@
     }
 
     private sealed record TrafficLightOption(int Value, string Label);
+    private sealed record ShiftTypeOption(int Value, string Label);
 
     private sealed class CitizenOverviewResponse
     {
