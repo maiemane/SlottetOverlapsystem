@@ -1,5 +1,6 @@
 using Slottet.Application.DTOs.Overlap;
 using Slottet.Application.Interfaces;
+using Slottet.Domain.Enums;
 
 namespace Slottet.Application.Services.Overlap;
 
@@ -28,6 +29,8 @@ public sealed class OverlapOverviewService : IOverlapOverviewService
         }
 
         var citizens = await _overlapOverviewRepository.GetActiveCitizensByDepartmentAsync(departmentId, cancellationToken);
+        var citizenIds = citizens.Select(citizen => citizen.Id).ToList();
+        var fixedMedications = await _overlapOverviewRepository.GetFixedMedicationsByCitizensAndShiftTypeAsync(citizenIds, shift.Type, cancellationToken);
         var medications = await _overlapOverviewRepository.GetMedicationsByShiftAsync(shiftId, cancellationToken);
         var specialEvents = await _overlapOverviewRepository.GetSpecialEventsByShiftAsync(shiftId, cancellationToken);
         var assignments = await _overlapOverviewRepository.GetCitizenAssignmentsByShiftAsync(shiftId, cancellationToken);
@@ -40,19 +43,7 @@ public sealed class OverlapOverviewService : IOverlapOverviewService
                 CitizenName = citizen.Name,
                 TrafficLight = citizen.TrafficLight,
                 ApartmentNumber = citizen.ApartmentNumber,
-                Medications = medications
-                    .Where(medication => medication.CitizenId == citizen.Id)
-                    .OrderBy(medication => medication.ScheduledTime)
-                    .Select(medication => new CitizenMedicationDto
-                    {
-                        Id = medication.Id,
-                        MedicinType = medication.MedicinType,
-                        Name = medication.Name,
-                        Description = medication.Description,
-                        ScheduledTime = medication.ScheduledTime,
-                        RegistrationTime = medication.RegistrationTime
-                    })
-                    .ToList(),
+                Medications = MapCitizenMedications(citizen.Id, shift.Date, fixedMedications, medications),
                 SpecialEvents = specialEvents
                     .Where(specialEvent => specialEvent.CitizenId == citizen.Id)
                     .OrderByDescending(specialEvent => specialEvent.EventTime)
@@ -81,5 +72,63 @@ public sealed class OverlapOverviewService : IOverlapOverviewService
             ShiftType = shift.Type,
             Citizens = citizenItems
         };
+    }
+
+    private static List<CitizenMedicationDto> MapCitizenMedications(
+        int citizenId,
+        DateTime shiftDate,
+        IReadOnlyList<Domain.Entities.CitizenFixedMedication> fixedMedications,
+        IReadOnlyList<Domain.Entities.MedicinRegistration> registrations)
+    {
+        var citizenFixedMedications = fixedMedications
+            .Where(medication => medication.CitizenId == citizenId)
+            .ToList();
+
+        var citizenRegistrations = registrations
+            .Where(registration => registration.CitizenId == citizenId)
+            .ToList();
+
+        var medicationDtos = citizenFixedMedications
+            .Select(fixedMedication =>
+            {
+                var matchedRegistration = citizenRegistrations
+                    .Where(registration => registration.CitizenFixedMedicationId == fixedMedication.Id)
+                    .OrderByDescending(registration => registration.RegistrationTime)
+                    .FirstOrDefault();
+
+                return new CitizenMedicationDto
+                {
+                    FixedMedicationId = fixedMedication.Id,
+                    MedicationRegistrationId = matchedRegistration?.Id,
+                    MedicinType = MedicinType.Fast,
+                    Name = fixedMedication.Name,
+                    Description = fixedMedication.Description,
+                    ScheduledTime = shiftDate.Date.Add(fixedMedication.ScheduledTime.ToTimeSpan()),
+                    RegistrationTime = matchedRegistration?.RegistrationTime,
+                    IsRegistered = matchedRegistration is not null
+                };
+            })
+            .ToList();
+
+        var standaloneRegistrations = citizenRegistrations
+            .Where(registration => registration.CitizenFixedMedicationId is null)
+            .Select(registration => new CitizenMedicationDto
+            {
+                FixedMedicationId = null,
+                MedicationRegistrationId = registration.Id,
+                MedicinType = registration.MedicinType,
+                Name = registration.Name,
+                Description = registration.Description,
+                ScheduledTime = registration.ScheduledTime,
+                RegistrationTime = registration.RegistrationTime,
+                IsRegistered = true
+            });
+
+        medicationDtos.AddRange(standaloneRegistrations);
+
+        return medicationDtos
+            .OrderBy(medication => medication.ScheduledTime)
+            .ThenBy(medication => medication.Name)
+            .ToList();
     }
 }
