@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Slottet.Application.Interfaces;
+using Slottet.Application.Services.Audit;
 using Slottet.Application.Services.Auth;
 using Slottet.Application.Services.Employees;
 using Slottet.Application.Services.Citizens;
@@ -16,6 +17,7 @@ using Slottet.Application.Services.SpecialEvents;
 using Slottet.Application.Services.Staffing;
 using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
+using Slottet.Infrastructure.Logging;
 using Slottet.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +30,7 @@ var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<Jw
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("SlottetDb")));
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddCors(options =>
 {
@@ -84,6 +87,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<ICreateCitizenService, CreateCitizenService>();
 builder.Services.AddScoped<ICreateCitizenFixedMedicationService, CreateCitizenFixedMedicationService>();
@@ -94,11 +98,13 @@ builder.Services.AddScoped<IShiftDefinitionService, ShiftDefinitionService>();
 builder.Services.AddScoped<IShiftTaskService, ShiftTaskService>();
 builder.Services.AddScoped<ISpecialEventService, SpecialEventService>();
 builder.Services.AddScoped<IStaffAllocationService, StaffAllocationService>();
+builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IPasswordVerificationService, PasswordVerificationService>();
 
 builder.Services.AddScoped<ICitizenCreationRepository, CitizenCreationRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<IMedicationRegistrationRepository, MedicationRegistrationRepository>();
 builder.Services.AddScoped<IOverlapOverviewRepository, OverlapOverviewRepository>();
@@ -120,6 +126,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("SlottetWeb");
 app.UseAuthentication();
+app.UseMiddleware<AccessLogMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

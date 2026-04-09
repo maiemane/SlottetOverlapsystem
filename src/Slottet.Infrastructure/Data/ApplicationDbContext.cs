@@ -1,15 +1,29 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using System.Text.Json;
+using Slottet.Application.Interfaces;
 using Slottet.Domain.Entities;
 
 namespace Slottet.Infrastructure.Data;
 
 public class ApplicationDbContext : DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    private static readonly HashSet<string> SensitivePropertyNames =
+    [
+        "Password",
+        "PasswordHash"
+    ];
+
+    private readonly ICurrentUserContext? _currentUserContext;
+
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICurrentUserContext? currentUserContext = null)
         : base(options)
     {
+        _currentUserContext = currentUserContext;
     }
 
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Citizen> Citizens => Set<Citizen>();
     public DbSet<Employee> Employees => Set<Employee>();
@@ -26,9 +40,52 @@ public class ApplicationDbContext : DbContext
     public DbSet<ShiftEmployee> ShiftEmployees => Set<ShiftEmployee>();
     public DbSet<ShiftDefinition> ShiftDefinitions => Set<ShiftDefinition>();
 
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        ChangeTracker.DetectChanges();
+
+        var auditEntries = CreateAuditEntries();
+        var result = await base.SaveChangesAsync(cancellationToken);
+
+        if (auditEntries.Count > 0)
+        {
+            var auditLogs = auditEntries
+                .Select(CreateAuditLog)
+                .ToList();
+
+            AuditLogs.AddRange(auditLogs);
+            await base.SaveChangesAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("AuditLog");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Action).IsRequired().HasMaxLength(20);
+            entity.Property(x => x.EntityName).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.EntityId).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.OldValuesJson).HasMaxLength(4000);
+            entity.Property(x => x.NewValuesJson).HasMaxLength(4000);
+            entity.Property(x => x.RequestPath).HasMaxLength(500);
+            entity.Property(x => x.CorrelationId).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<AccessLog>(entity =>
+        {
+            entity.ToTable("AccessLog");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.HttpMethod).IsRequired().HasMaxLength(10);
+            entity.Property(x => x.RequestPath).IsRequired().HasMaxLength(500);
+            entity.Property(x => x.QueryString).HasMaxLength(1000);
+            entity.Property(x => x.CorrelationId).HasMaxLength(100);
+        });
 
         modelBuilder.Entity<Department>(entity =>
         {
@@ -239,5 +296,99 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(x => x.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+    }
+
+    private List<AuditEntry> CreateAuditEntries()
+    {
+        var auditEntries = new List<AuditEntry>();
+
+        foreach (var entry in ChangeTracker.Entries()
+                     .Where(candidate => candidate.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        {
+            if (entry.Entity is AuditLog or AccessLog)
+            {
+                continue;
+            }
+
+            var oldValues = new Dictionary<string, object?>();
+            var newValues = new Dictionary<string, object?>();
+
+            foreach (var property in entry.Properties)
+            {
+                if (property.Metadata.IsPrimaryKey() || SensitivePropertyNames.Contains(property.Metadata.Name))
+                {
+                    continue;
+                }
+
+                if (entry.State == EntityState.Added)
+                {
+                    newValues[property.Metadata.Name] = property.CurrentValue;
+                }
+                else if (entry.State == EntityState.Deleted)
+                {
+                    oldValues[property.Metadata.Name] = property.OriginalValue;
+                }
+                else if (property.IsModified)
+                {
+                    oldValues[property.Metadata.Name] = property.OriginalValue;
+                    newValues[property.Metadata.Name] = property.CurrentValue;
+                }
+            }
+
+            if (entry.State == EntityState.Modified && oldValues.Count == 0 && newValues.Count == 0)
+            {
+                continue;
+            }
+
+            auditEntries.Add(new AuditEntry
+            {
+                Entry = entry,
+                Action = entry.State switch
+                {
+                    EntityState.Added => "Create",
+                    EntityState.Modified => "Update",
+                    EntityState.Deleted => "Delete",
+                    _ => "Unknown"
+                },
+                EntityName = entry.Metadata.ClrType.Name,
+                OldValues = oldValues,
+                NewValues = newValues
+            });
+        }
+
+        return auditEntries;
+    }
+
+    private AuditLog CreateAuditLog(AuditEntry auditEntry)
+    {
+        return new AuditLog
+        {
+            OccurredAtUtc = DateTime.UtcNow,
+            EmployeeId = _currentUserContext?.EmployeeId,
+            Action = auditEntry.Action,
+            EntityName = auditEntry.EntityName,
+            EntityId = GetPrimaryKeyValue(auditEntry.Entry),
+            OldValuesJson = Serialize(auditEntry.OldValues),
+            NewValuesJson = Serialize(auditEntry.NewValues),
+            RequestPath = _currentUserContext?.RequestPath ?? string.Empty,
+            CorrelationId = _currentUserContext?.CorrelationId ?? string.Empty
+        };
+    }
+
+    private static string GetPrimaryKeyValue(EntityEntry entry)
+    {
+        var keyValues = entry.Properties
+            .Where(property => property.Metadata.IsPrimaryKey())
+            .Select(property => property.CurrentValue?.ToString() ?? string.Empty)
+            .ToList();
+
+        return string.Join(",", keyValues);
+    }
+
+    private static string Serialize(Dictionary<string, object?> values)
+    {
+        return values.Count == 0
+            ? string.Empty
+            : JsonSerializer.Serialize(values);
     }
 }

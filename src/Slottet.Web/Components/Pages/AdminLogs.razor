@@ -1,0 +1,405 @@
+@page "/admin/logs"
+@using System.Net
+@using System.Net.Http.Json
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+
+<PageTitle>Audit Logs</PageTitle>
+
+@if (IsAdmin)
+{
+    <section class="logs-shell">
+        <header class="logs-header">
+            <div>
+                <h1>Audit Logs</h1>
+                <p>Viser de nyeste audit- og access logs for systemet.</p>
+            </div>
+            <div class="logs-header-actions">
+                <label class="logs-take">
+                    <span>Antal</span>
+                    <select value="@SelectedTake" @onchange="HandleTakeChangedAsync">
+                        @foreach (var option in TakeOptions)
+                        {
+                            <option value="@option">@option</option>
+                        }
+                    </select>
+                </label>
+                <button type="button" class="btn btn-outline-secondary" @onclick="RefreshAsync" disabled="@IsLoading">
+                    @(IsLoading ? "Opdaterer..." : "Opdater")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="alert alert-danger" role="alert">@StatusMessage</div>
+        }
+
+        <div class="logs-tabs">
+            <button type="button"
+                    class="logs-tab @(ActiveTab == LogsTab.Audit ? "active" : string.Empty)"
+                    @onclick="() => SetTabAsync(LogsTab.Audit)"
+                    disabled="@IsLoading">
+                Audit logs
+            </button>
+            <button type="button"
+                    class="logs-tab @(ActiveTab == LogsTab.Access ? "active" : string.Empty)"
+                    @onclick="() => SetTabAsync(LogsTab.Access)"
+                    disabled="@IsLoading">
+                Access logs
+            </button>
+        </div>
+
+        <section class="logs-card">
+            @if (IsLoading)
+            {
+                <p class="mb-0">Indlæser logs...</p>
+            }
+            else if (ActiveTab == LogsTab.Audit)
+            {
+                @if (AuditLogs.Count == 0)
+                {
+                    <p class="mb-0">Ingen audit logs fundet.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Tidspunkt</th>
+                                    <th>Medarbejder</th>
+                                    <th>Handling</th>
+                                    <th>Entitet</th>
+                                    <th>Path</th>
+                                    <th>Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var log in AuditLogs)
+                                {
+                                    <tr>
+                                        <td>@FormatDateTime(log.OccurredAtUtc)</td>
+                                        <td>@FormatEmployeeId(log.EmployeeId)</td>
+                                        <td>@log.Action</td>
+                                        <td>@($"{log.EntityName} #{log.EntityId}")</td>
+                                        <td class="logs-path-cell">@log.RequestPath</td>
+                                        <td>
+                                            <details>
+                                                <summary>Vis JSON</summary>
+                                                @if (!string.IsNullOrWhiteSpace(log.OldValuesJson))
+                                                {
+                                                    <div class="logs-json-block">
+                                                        <strong>Old</strong>
+                                                        <pre>@log.OldValuesJson</pre>
+                                                    </div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(log.NewValuesJson))
+                                                {
+                                                    <div class="logs-json-block">
+                                                        <strong>New</strong>
+                                                        <pre>@log.NewValuesJson</pre>
+                                                    </div>
+                                                }
+                                            </details>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            else
+            {
+                @if (AccessLogs.Count == 0)
+                {
+                    <p class="mb-0">Ingen access logs fundet.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Tidspunkt</th>
+                                    <th>Medarbejder</th>
+                                    <th>Metode</th>
+                                    <th>Path</th>
+                                    <th>Query</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var log in AccessLogs)
+                                {
+                                    <tr>
+                                        <td>@FormatDateTime(log.OccurredAtUtc)</td>
+                                        <td>@FormatEmployeeId(log.EmployeeId)</td>
+                                        <td>@log.HttpMethod</td>
+                                        <td class="logs-path-cell">@log.RequestPath</td>
+                                        <td class="logs-query-cell">@log.QueryString</td>
+                                        <td>@log.StatusCode</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </section>
+    </section>
+}
+
+<style>
+    .logs-shell {
+        padding: 2rem 0 3rem;
+        color: #19352c;
+        display: grid;
+        gap: 1rem;
+    }
+
+    .logs-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .logs-header h1 {
+        margin: 0;
+    }
+
+    .logs-header p {
+        margin: 0.35rem 0 0;
+        color: #5d7469;
+    }
+
+    .logs-header-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: end;
+        flex-wrap: wrap;
+    }
+
+    .logs-take {
+        display: grid;
+        gap: 0.25rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #486257;
+    }
+
+    .logs-take select {
+        min-width: 5rem;
+        padding: 0.45rem 0.6rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.65rem;
+        background: #fff;
+    }
+
+    .logs-tabs {
+        display: flex;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+    }
+
+    .logs-tab {
+        border: 1px solid #bfd1c4;
+        border-radius: 999px;
+        background: #f4f8f6;
+        color: #254539;
+        font-weight: 700;
+        padding: 0.55rem 0.95rem;
+    }
+
+    .logs-tab.active {
+        background: #254539;
+        border-color: #254539;
+        color: #fff;
+    }
+
+    .logs-card {
+        border: 1px solid #d6e2da;
+        border-radius: 1rem;
+        background: #fff;
+        padding: 1rem;
+        box-shadow: 0 8px 20px rgba(34, 63, 50, 0.06);
+    }
+
+    .logs-path-cell,
+    .logs-query-cell {
+        max-width: 18rem;
+        word-break: break-word;
+    }
+
+    .logs-json-block {
+        margin-top: 0.5rem;
+    }
+
+    .logs-json-block pre {
+        margin: 0.35rem 0 0;
+        padding: 0.65rem;
+        border-radius: 0.75rem;
+        background: #f6f8f7;
+        color: #234036;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+</style>
+
+@code {
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+
+    private readonly int[] TakeOptions = [25, 50, 100, 250, 500];
+
+    private LogsTab ActiveTab { get; set; } = LogsTab.Audit;
+    private int SelectedTake { get; set; } = 100;
+    private bool IsLoading { get; set; }
+    private string? StatusMessage { get; set; }
+    private List<AuditLogRow> AuditLogs { get; set; } = [];
+    private List<AccessLogRow> AccessLogs { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsAdmin)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+            return;
+        }
+
+        await LoadActiveTabAsync();
+    }
+
+    private async Task SetTabAsync(LogsTab tab)
+    {
+        if (ActiveTab == tab)
+        {
+            return;
+        }
+
+        ActiveTab = tab;
+        await LoadActiveTabAsync();
+    }
+
+    private async Task HandleTakeChangedAsync(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var take))
+        {
+            SelectedTake = take;
+            await LoadActiveTabAsync();
+        }
+    }
+
+    private Task RefreshAsync()
+    {
+        return LoadActiveTabAsync();
+    }
+
+    private async Task LoadActiveTabAsync()
+    {
+        IsLoading = true;
+        StatusMessage = null;
+
+        try
+        {
+            if (ActiveTab == LogsTab.Audit)
+            {
+                AuditLogs = await LoadAuditLogsAsync();
+            }
+            else
+            {
+                AccessLogs = await LoadAccessLogsAsync();
+            }
+        }
+        catch (HttpRequestException)
+        {
+            StatusMessage = "Kunne ikke hente logs fra API'et.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task<List<AuditLogRow>> LoadAuditLogsAsync()
+    {
+        using var client = AuthService.CreateApiClient();
+        using var response = await client.GetAsync($"api/admin/logs/audit?take={SelectedTake}");
+
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            StatusMessage = "Du har ikke adgang til audit logs.";
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        var logs = await response.Content.ReadFromJsonAsync<List<AuditLogRow>>();
+        return logs ?? [];
+    }
+
+    private async Task<List<AccessLogRow>> LoadAccessLogsAsync()
+    {
+        using var client = AuthService.CreateApiClient();
+        using var response = await client.GetAsync($"api/admin/logs/access?take={SelectedTake}");
+
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            StatusMessage = "Du har ikke adgang til access logs.";
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        var logs = await response.Content.ReadFromJsonAsync<List<AccessLogRow>>();
+        return logs ?? [];
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        var utcValue = value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            : value.ToUniversalTime();
+
+        return utcValue.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss");
+    }
+
+    private static string FormatEmployeeId(int? employeeId)
+    {
+        return employeeId?.ToString() ?? "Ukendt";
+    }
+
+    private enum LogsTab
+    {
+        Audit,
+        Access
+    }
+
+    private sealed class AuditLogRow
+    {
+        public int Id { get; set; }
+        public DateTime OccurredAtUtc { get; set; }
+        public int? EmployeeId { get; set; }
+        public string Action { get; set; } = string.Empty;
+        public string EntityName { get; set; } = string.Empty;
+        public string EntityId { get; set; } = string.Empty;
+        public string OldValuesJson { get; set; } = string.Empty;
+        public string NewValuesJson { get; set; } = string.Empty;
+        public string RequestPath { get; set; } = string.Empty;
+        public string CorrelationId { get; set; } = string.Empty;
+    }
+
+    private sealed class AccessLogRow
+    {
+        public int Id { get; set; }
+        public DateTime OccurredAtUtc { get; set; }
+        public int? EmployeeId { get; set; }
+        public string HttpMethod { get; set; } = string.Empty;
+        public string RequestPath { get; set; } = string.Empty;
+        public string QueryString { get; set; } = string.Empty;
+        public int StatusCode { get; set; }
+        public string CorrelationId { get; set; } = string.Empty;
+    }
+}
