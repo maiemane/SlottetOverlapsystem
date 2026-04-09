@@ -43,6 +43,12 @@ public sealed class MedicationRegistrationRepository : IMedicationRegistrationRe
             .ToListAsync(cancellationToken);
     }
 
+    public Task<MedicinRegistration?> GetMedicationRegistrationByIdAsync(int medicationRegistrationId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.MedicinRegistrations
+            .FirstOrDefaultAsync(registration => registration.Id == medicationRegistrationId, cancellationToken);
+    }
+
     public Task<MedicinRegistration?> GetFixedMedicationRegistrationAsync(int shiftId, int citizenFixedMedicationId, CancellationToken cancellationToken = default)
     {
         return _dbContext.MedicinRegistrations
@@ -57,5 +63,11 @@ public sealed class MedicationRegistrationRepository : IMedicationRegistrationRe
         _dbContext.MedicinRegistrations.Add(registration);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return registration;
+    }
+
+    public async Task DeleteMedicationRegistrationAsync(MedicinRegistration registration, CancellationToken cancellationToken = default)
+    {
+        _dbContext.MedicinRegistrations.Remove(registration);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

@@ -88,6 +88,66 @@ public sealed class MedicationRegistrationService : IMedicationRegistrationServi
         return await CreatePnMedicationRegistrationAsync(shift, citizen, request, cancellationToken);
     }
 
+    public async Task<DeleteMedicationRegistrationResult> DeleteAsync(int shiftId, int citizenId, int medicationRegistrationId, CancellationToken cancellationToken = default)
+    {
+        if (shiftId <= 0 || citizenId <= 0 || medicationRegistrationId <= 0)
+        {
+            return new DeleteMedicationRegistrationResult
+            {
+                IsSuccess = false,
+                Error = "InvalidRequest"
+            };
+        }
+
+        var shift = await _medicationRegistrationRepository.GetShiftByIdAsync(shiftId, cancellationToken);
+        var citizen = await _medicationRegistrationRepository.GetCitizenByIdAsync(citizenId, cancellationToken);
+
+        if (shift is null)
+        {
+            return new DeleteMedicationRegistrationResult
+            {
+                IsSuccess = false,
+                Error = "ShiftNotFound"
+            };
+        }
+
+        if (citizen is null || !citizen.IsActive)
+        {
+            return new DeleteMedicationRegistrationResult
+            {
+                IsSuccess = false,
+                Error = "CitizenNotFound"
+            };
+        }
+
+        if (citizen.DepartmentId != shift.DepartmentId)
+        {
+            return new DeleteMedicationRegistrationResult
+            {
+                IsSuccess = false,
+                Error = "CitizenNotInShiftDepartment"
+            };
+        }
+
+        var registration = await _medicationRegistrationRepository.GetMedicationRegistrationByIdAsync(medicationRegistrationId, cancellationToken);
+
+        if (registration is null || registration.ShiftId != shiftId || registration.CitizenId != citizenId)
+        {
+            return new DeleteMedicationRegistrationResult
+            {
+                IsSuccess = false,
+                Error = "RegistrationNotFound"
+            };
+        }
+
+        await _medicationRegistrationRepository.DeleteMedicationRegistrationAsync(registration, cancellationToken);
+
+        return new DeleteMedicationRegistrationResult
+        {
+            IsSuccess = true
+        };
+    }
+
     private async Task<CreateMedicationRegistrationResult> CreateFixedMedicationRegistrationAsync(
         Shift shift,
         Citizen citizen,
