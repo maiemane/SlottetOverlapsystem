@@ -11,6 +11,7 @@ using Slottet.Application.Services.Citizens;
 using Slottet.Application.Services.Medications;
 using Slottet.Application.Services.Overlap;
 using Slottet.Application.Services.ShiftDefinitions;
+using Slottet.Application.Services.ShiftTasks;
 using Slottet.Application.Services.SpecialEvents;
 using Slottet.Application.Services.Staffing;
 using Slottet.Infrastructure.Auth;
@@ -90,6 +91,7 @@ builder.Services.AddScoped<ICitizenFixedMedicationService, CitizenFixedMedicatio
 builder.Services.AddScoped<IMedicationRegistrationService, MedicationRegistrationService>();
 builder.Services.AddScoped<IOverlapOverviewService, OverlapOverviewService>();
 builder.Services.AddScoped<IShiftDefinitionService, ShiftDefinitionService>();
+builder.Services.AddScoped<IShiftTaskService, ShiftTaskService>();
 builder.Services.AddScoped<ISpecialEventService, SpecialEventService>();
 builder.Services.AddScoped<IStaffAllocationService, StaffAllocationService>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
@@ -101,6 +103,7 @@ builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddScoped<IMedicationRegistrationRepository, MedicationRegistrationRepository>();
 builder.Services.AddScoped<IOverlapOverviewRepository, OverlapOverviewRepository>();
 builder.Services.AddScoped<IShiftDefinitionRepository, ShiftDefinitionRepository>();
+builder.Services.AddScoped<IShiftTaskRepository, ShiftTaskRepository>();
 builder.Services.AddScoped<ISpecialEventRepository, SpecialEventRepository>();
 builder.Services.AddScoped<IStaffAllocationRepository, StaffAllocationRepository>();
 
