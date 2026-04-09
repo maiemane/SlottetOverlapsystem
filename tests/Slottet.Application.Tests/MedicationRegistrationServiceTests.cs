@@ -173,10 +173,29 @@ public class MedicationRegistrationServiceTests
             return Task.FromResult(ExistingFixedMedicationRegistration);
         }
 
+        public Task<MedicinRegistration?> GetMedicationRegistrationByIdAsync(int medicationRegistrationId, CancellationToken cancellationToken = default)
+        {
+            MedicinRegistration? registration = medicationRegistrationId == ExistingFixedMedicationRegistration?.Id
+                ? ExistingFixedMedicationRegistration
+                : null;
+
+            return Task.FromResult(registration);
+        }
+
         public Task<MedicinRegistration> AddMedicationRegistrationAsync(MedicinRegistration registration, CancellationToken cancellationToken = default)
         {
             registration.Id = 300;
             return Task.FromResult(registration);
+        }
+
+        public Task DeleteMedicationRegistrationAsync(MedicinRegistration registration, CancellationToken cancellationToken = default)
+        {
+            if (ExistingFixedMedicationRegistration?.Id == registration.Id)
+            {
+                ExistingFixedMedicationRegistration = null;
+            }
+
+            return Task.CompletedTask;
         }
     }
 }

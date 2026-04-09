@@ -58,4 +58,29 @@ public sealed class MedicationRegistrationsController : ControllerBase
 
         return CreatedAtAction(nameof(Create), new { shiftId, citizenId, id = result.Registration!.Id }, result.Registration);
     }
+
+    [HttpDelete("{medicationRegistrationId:int}")]
+    public async Task<IActionResult> Delete(
+        int shiftId,
+        int citizenId,
+        int medicationRegistrationId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _medicationRegistrationService.DeleteAsync(shiftId, citizenId, medicationRegistrationId, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                "InvalidRequest" => BadRequest("Requesten er ugyldig."),
+                "ShiftNotFound" => NotFound("Vagten blev ikke fundet."),
+                "CitizenNotFound" => NotFound("Borgeren blev ikke fundet."),
+                "CitizenNotInShiftDepartment" => BadRequest("Borgeren tilhoerer ikke den valgte vagts afdeling."),
+                "RegistrationNotFound" => NotFound("Medicinregistreringen blev ikke fundet."),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        }
+
+        return NoContent();
+    }
 }

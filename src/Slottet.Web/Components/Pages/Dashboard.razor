@@ -174,7 +174,7 @@
                                         <input id="@inputId"
                                                type="checkbox"
                                                @bind="medication.IsRegistered"
-                                               disabled="@(IsSaving || medication.InitiallyRegistered || !CanRegisterMedication)"
+                                               disabled="@(IsSaving || !CanRegisterMedication)"
                                                @bind:event="onchange" />
                                         <div>
                                             <strong>@medication.Name</strong>
@@ -855,41 +855,62 @@
                 }
             }
 
-            var newMedicationRegistrations = SelectedCitizen.Medications
-                .Where(medication => medication.MedicationRegistrationId is null && medication.IsRegistered)
-                .ToList();
-
-            foreach (var medication in newMedicationRegistrations)
+            if (!CanRegisterMedication)
             {
-                if (!CanRegisterMedication)
-                {
-                    errors.Add("Din rolle kan ikke gemme medicinregistreringer.");
-                    break;
-                }
+                errors.Add("Din rolle kan ikke gemme medicinregistreringer.");
+            }
+            else if (Overview.ShiftId <= 0)
+            {
+                errors.Add("Vagt-id mangler. Kunne ikke gemme medicinregistrering.");
+            }
+            else
+            {
+                var removedMedicationRegistrations = SelectedCitizen.Medications
+                    .Where(medication => medication.MedicationRegistrationId.HasValue && !medication.IsRegistered)
+                    .ToList();
 
-                if (Overview.ShiftId <= 0)
+                foreach (var medication in removedMedicationRegistrations)
                 {
-                    errors.Add("Vagt-id mangler. Kunne ikke gemme medicinregistrering.");
-                    break;
-                }
+                    using var deleteResponse = await client.DeleteAsync(
+                        $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/medication-registrations/{medication.MedicationRegistrationId!.Value}");
 
-                using var medicationResponse = await client.PostAsJsonAsync(
-                    $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/medication-registrations",
-                    new
+                    if (!deleteResponse.IsSuccessStatusCode)
                     {
-                        medicinType = medication.MedicinType,
-                        citizenFixedMedicationId = medication.FixedMedicationId,
-                        registrationTime = DateTime.UtcNow
-                    });
+                        var apiMessage = await deleteResponse.Content.ReadAsStringAsync();
+                        errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                            ? $"Kunne ikke fjerne medicinregistrering for {medication.Name}."
+                            : apiMessage);
+                        break;
+                    }
+                }
 
-                var apiMessage = await medicationResponse.Content.ReadAsStringAsync();
-
-                if (!medicationResponse.IsSuccessStatusCode)
+                if (errors.Count == 0)
                 {
-                    errors.Add(string.IsNullOrWhiteSpace(apiMessage)
-                        ? $"Kunne ikke gemme medicinregistrering for {medication.Name}."
-                        : apiMessage);
-                    break;
+                    var newMedicationRegistrations = SelectedCitizen.Medications
+                        .Where(medication => medication.MedicationRegistrationId is null && medication.IsRegistered)
+                        .ToList();
+
+                    foreach (var medication in newMedicationRegistrations)
+                    {
+                        using var medicationResponse = await client.PostAsJsonAsync(
+                            $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/medication-registrations",
+                            new
+                            {
+                                medicinType = medication.MedicinType,
+                                citizenFixedMedicationId = medication.FixedMedicationId,
+                                registrationTime = DateTime.UtcNow
+                            });
+
+                        var apiMessage = await medicationResponse.Content.ReadAsStringAsync();
+
+                        if (!medicationResponse.IsSuccessStatusCode)
+                        {
+                            errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                                ? $"Kunne ikke gemme medicinregistrering for {medication.Name}."
+                                : apiMessage);
+                            break;
+                        }
+                    }
                 }
             }
 

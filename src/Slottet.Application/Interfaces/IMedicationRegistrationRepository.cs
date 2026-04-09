@@ -8,6 +8,8 @@ public interface IMedicationRegistrationRepository
     Task<Citizen?> GetCitizenByIdAsync(int citizenId, CancellationToken cancellationToken = default);
     Task<CitizenFixedMedication?> GetFixedMedicationByIdAsync(int fixedMedicationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicinRegistration>> GetMedicationRegistrationsAsync(int shiftId, int citizenId, CancellationToken cancellationToken = default);
+    Task<MedicinRegistration?> GetMedicationRegistrationByIdAsync(int medicationRegistrationId, CancellationToken cancellationToken = default);
     Task<MedicinRegistration?> GetFixedMedicationRegistrationAsync(int shiftId, int citizenFixedMedicationId, CancellationToken cancellationToken = default);
     Task<MedicinRegistration> AddMedicationRegistrationAsync(MedicinRegistration registration, CancellationToken cancellationToken = default);
+    Task DeleteMedicationRegistrationAsync(MedicinRegistration registration, CancellationToken cancellationToken = default);
 }
