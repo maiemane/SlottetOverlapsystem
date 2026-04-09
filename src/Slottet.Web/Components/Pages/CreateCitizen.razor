@@ -59,7 +59,7 @@
                                 <td>@GetDepartmentName(citizen.DepartmentId)</td>
                                 <td>@(citizen.IsActive ? "Aktiv" : "Inaktiv")</td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-outline-primary btn-sm me-2" @onclick="@(() => ShowEditForm(citizen))">
+                                    <button type="button" class="btn btn-outline-primary btn-sm me-2" @onclick="@(() => ShowEditFormAsync(citizen))">
                                         Rediger
                                     </button>
                                     <button type="button" class="btn btn-outline-danger btn-sm" @onclick="@(() => PromptDelete(citizen))">
@@ -119,6 +119,58 @@
                                         }
                                     </InputSelect>
                                     <ValidationMessage For="@(() => Model.DepartmentId)" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0">Faste mediciner</label>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="AddCreateFixedMedication" disabled="@IsSubmitting">
+                                            Tilføj medicin
+                                        </button>
+                                    </div>
+
+                                    @if (CreateFixedMedications.Count == 0)
+                                    {
+                                        <p class="text-muted mb-0">Ingen faste mediciner tilføjet.</p>
+                                    }
+                                    else
+                                    {
+                                        @for (var index = 0; index < CreateFixedMedications.Count; index++)
+                                        {
+                                            var medication = CreateFixedMedications[index];
+                                            var rowIndex = index;
+                                            <div class="border rounded p-2 mb-2">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Navn</label>
+                                                    <input class="form-control" value="@medication.Name" @onchange="args => medication.Name = args.Value?.ToString() ?? string.Empty" />
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label">Beskrivelse</label>
+                                                    <textarea class="form-control" rows="2" @onchange="args => medication.Description = args.Value?.ToString() ?? string.Empty">@medication.Description</textarea>
+                                                </div>
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <label class="form-label">Klokkeslæt</label>
+                                                        <input type="time" class="form-control" value="@medication.ScheduledTimeText" @onchange="args => medication.ScheduledTimeText = args.Value?.ToString() ?? string.Empty" />
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <label class="form-label">Vagt</label>
+                                                        <select class="form-select" value="@medication.ShiftType" @onchange="args => HandleCreateMedicationShiftTypeChanged(rowIndex, args)">
+                                                            @foreach (var option in ShiftTypeOptions)
+                                                            {
+                                                                <option value="@option.Value">@option.Label</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="text-end mt-2">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" @onclick="@(() => RemoveCreateFixedMedication(rowIndex))" disabled="@IsSubmitting">
+                                                        Fjern
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
                                 </div>
 
                                 @if (!string.IsNullOrWhiteSpace(ErrorMessage))
@@ -194,6 +246,74 @@
                                     <label class="form-check-label" for="edit-citizen-active">Aktiv borger</label>
                                 </div>
 
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0">Faste mediciner</label>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="AddEditFixedMedication" disabled="@IsEditing">
+                                            Tilføj medicin
+                                        </button>
+                                    </div>
+
+                                    @if (IsLoadingEditFixedMedications)
+                                    {
+                                        <p class="text-muted mb-0">Indlæser faste mediciner...</p>
+                                    }
+                                    else if (EditFixedMedications.Count == 0)
+                                    {
+                                        <p class="text-muted mb-0">Ingen faste mediciner endnu.</p>
+                                    }
+                                    else
+                                    {
+                                        @for (var index = 0; index < EditFixedMedications.Count; index++)
+                                        {
+                                            var medication = EditFixedMedications[index];
+                                            var rowIndex = index;
+                                            <div class="border rounded p-2 mb-2">
+                                                <div class="mb-2">
+                                                    <label class="form-label">Navn</label>
+                                                    <input class="form-control" value="@medication.Name" @onchange="args => medication.Name = args.Value?.ToString() ?? string.Empty" />
+                                                </div>
+                                                <div class="mb-2">
+                                                    <label class="form-label">Beskrivelse</label>
+                                                    <textarea class="form-control" rows="2" @onchange="args => medication.Description = args.Value?.ToString() ?? string.Empty">@medication.Description</textarea>
+                                                </div>
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <label class="form-label">Klokkeslæt</label>
+                                                        <input type="time" class="form-control" value="@medication.ScheduledTimeText" @onchange="args => medication.ScheduledTimeText = args.Value?.ToString() ?? string.Empty" />
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <label class="form-label">Vagt</label>
+                                                        <select class="form-select" value="@medication.ShiftType" @onchange="args => HandleEditMedicationShiftTypeChanged(rowIndex, args)">
+                                                            @foreach (var option in ShiftTypeOptions)
+                                                            {
+                                                                <option value="@option.Value">@option.Label</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@medication.IsActive"
+                                                               @onchange="args => medication.IsActive = args.Value is bool isChecked && isChecked" />
+                                                        <label class="form-check-label">Aktiv medicin</label>
+                                                    </div>
+
+                                                    @if (!medication.FixedMedicationId.HasValue)
+                                                    {
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" @onclick="@(() => RemoveEditFixedMedication(rowIndex))" disabled="@IsEditing">
+                                                            Fjern
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+
                                 @if (!string.IsNullOrWhiteSpace(EditErrorMessage))
                                 {
                                     <div class="alert alert-danger" role="alert">@EditErrorMessage</div>
@@ -255,6 +375,13 @@
         new(3, "Rød")
     ];
 
+    private static readonly IReadOnlyList<ShiftTypeOption> ShiftTypeOptions =
+    [
+        new(1, "Dagvagt"),
+        new(2, "Aftenvagt"),
+        new(3, "Nattevagt")
+    ];
+
     private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
     private List<CitizenListItem> Citizens { get; set; } = [];
     private CreateCitizenFormModel Model { get; set; } = new();
@@ -270,6 +397,9 @@
     private string? SuccessMessage { get; set; }
     private CitizenListItem? CitizenBeingEdited { get; set; }
     private CitizenListItem? CitizenPendingDelete { get; set; }
+    private List<FixedMedicationInputModel> CreateFixedMedications { get; set; } = [];
+    private List<FixedMedicationInputModel> EditFixedMedications { get; set; } = [];
+    private bool IsLoadingEditFixedMedications { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -302,8 +432,19 @@
 
             if (response.IsSuccessStatusCode)
             {
-                SuccessMessage = "Borgeren blev oprettet.";
+                var createdCitizen = await response.Content.ReadFromJsonAsync<CitizenListItem>();
+                var fixedMedicationErrors = new List<string>();
+
+                if (createdCitizen?.Id > 0 && CreateFixedMedications.Count > 0)
+                {
+                    fixedMedicationErrors = await SaveCreateFixedMedicationsAsync(client, createdCitizen.Id);
+                }
+
+                SuccessMessage = fixedMedicationErrors.Count == 0
+                    ? "Borgeren blev oprettet."
+                    : $"Borgeren blev oprettet, men faste mediciner blev ikke gemt korrekt: {string.Join(" ", fixedMedicationErrors)}";
                 Model = CreateDefaultCreateModel();
+                CreateFixedMedications = [];
                 await LoadCitizensAsync();
                 IsCreateFormVisible = false;
                 return;
@@ -335,6 +476,7 @@
         ErrorMessage = null;
         SuccessMessage = null;
         Model = CreateDefaultCreateModel();
+        CreateFixedMedications = [];
         IsCreateFormVisible = true;
     }
 
@@ -343,10 +485,11 @@
         ErrorMessage = null;
         SuccessMessage = null;
         Model = CreateDefaultCreateModel();
+        CreateFixedMedications = [];
         IsCreateFormVisible = false;
     }
 
-    private void ShowEditForm(CitizenListItem citizen)
+    private async Task ShowEditFormAsync(CitizenListItem citizen)
     {
         SuccessMessage = null;
         EditErrorMessage = null;
@@ -359,6 +502,8 @@
             DepartmentId = citizen.DepartmentId,
             IsActive = citizen.IsActive
         };
+
+        await LoadEditFixedMedicationsAsync(citizen.Id);
     }
 
     private void HideEditForm()
@@ -366,6 +511,8 @@
         EditErrorMessage = null;
         CitizenBeingEdited = null;
         EditModel = new EditCitizenFormModel();
+        EditFixedMedications = [];
+        IsLoadingEditFixedMedications = false;
     }
 
     private async Task HandleEditAsync()
@@ -393,7 +540,11 @@
 
             if (response.IsSuccessStatusCode)
             {
-                SuccessMessage = "Borgeren blev opdateret.";
+                var fixedMedicationErrors = await SaveEditFixedMedicationsAsync(client, CitizenBeingEdited.Id);
+
+                SuccessMessage = fixedMedicationErrors.Count == 0
+                    ? "Borgeren blev opdateret."
+                    : $"Borgeren blev opdateret, men nogle faste mediciner kunne ikke gemmes: {string.Join(" ", fixedMedicationErrors)}";
                 await LoadCitizensAsync();
                 HideEditForm();
                 return;
@@ -509,6 +660,254 @@
         }
     }
 
+    private async Task LoadEditFixedMedicationsAsync(int citizenId)
+    {
+        IsLoadingEditFixedMedications = true;
+        EditFixedMedications = [];
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync($"api/citizens/{citizenId}/fixed-medications");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode != HttpStatusCode.NotFound)
+                {
+                    var apiMessage = await response.Content.ReadAsStringAsync();
+                    EditErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                        ? "Kunne ikke hente faste mediciner."
+                        : apiMessage;
+                }
+
+                return;
+            }
+
+            var medications = await response.Content.ReadFromJsonAsync<List<FixedMedicationApiModel>>();
+
+            EditFixedMedications = medications?
+                .OrderBy(medication => medication.ShiftType)
+                .ThenBy(medication => medication.ScheduledTime)
+                .Select(medication => new FixedMedicationInputModel
+                {
+                    FixedMedicationId = medication.FixedMedicationId,
+                    Name = medication.Name,
+                    Description = medication.Description,
+                    ScheduledTimeText = NormalizeTimeForInput(medication.ScheduledTime),
+                    ShiftType = medication.ShiftType,
+                    IsActive = medication.IsActive
+                })
+                .ToList() ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            EditErrorMessage = "Kunne ikke hente faste mediciner fra API'et.";
+        }
+        finally
+        {
+            IsLoadingEditFixedMedications = false;
+        }
+    }
+
+    private void AddCreateFixedMedication()
+    {
+        CreateFixedMedications.Add(new FixedMedicationInputModel
+        {
+            ShiftType = ShiftTypeOptions[0].Value,
+            IsActive = true
+        });
+    }
+
+    private void RemoveCreateFixedMedication(int index)
+    {
+        if (index < 0 || index >= CreateFixedMedications.Count)
+        {
+            return;
+        }
+
+        CreateFixedMedications.RemoveAt(index);
+    }
+
+    private void AddEditFixedMedication()
+    {
+        EditFixedMedications.Add(new FixedMedicationInputModel
+        {
+            ShiftType = ShiftTypeOptions[0].Value,
+            IsActive = true
+        });
+    }
+
+    private void RemoveEditFixedMedication(int index)
+    {
+        if (index < 0 || index >= EditFixedMedications.Count)
+        {
+            return;
+        }
+
+        if (EditFixedMedications[index].FixedMedicationId.HasValue)
+        {
+            return;
+        }
+
+        EditFixedMedications.RemoveAt(index);
+    }
+
+    private void HandleCreateMedicationShiftTypeChanged(int index, ChangeEventArgs args)
+    {
+        if (index < 0 || index >= CreateFixedMedications.Count)
+        {
+            return;
+        }
+
+        if (int.TryParse(args.Value?.ToString(), out var shiftType))
+        {
+            CreateFixedMedications[index].ShiftType = shiftType;
+        }
+    }
+
+    private void HandleEditMedicationShiftTypeChanged(int index, ChangeEventArgs args)
+    {
+        if (index < 0 || index >= EditFixedMedications.Count)
+        {
+            return;
+        }
+
+        if (int.TryParse(args.Value?.ToString(), out var shiftType))
+        {
+            EditFixedMedications[index].ShiftType = shiftType;
+        }
+    }
+
+    private async Task<List<string>> SaveCreateFixedMedicationsAsync(HttpClient client, int citizenId)
+    {
+        var errors = new List<string>();
+
+        foreach (var medication in CreateFixedMedications.Where(HasAnyFixedMedicationInput))
+        {
+            if (!TryBuildFixedMedicationPayload(medication, out var payload, out var error))
+            {
+                errors.Add(error);
+                continue;
+            }
+
+            using var response = await client.PostAsJsonAsync($"api/citizens/{citizenId}/fixed-medications", payload);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                    ? $"Kunne ikke oprette fast medicin '{medication.Name}'."
+                    : apiMessage);
+            }
+        }
+
+        return errors;
+    }
+
+    private async Task<List<string>> SaveEditFixedMedicationsAsync(HttpClient client, int citizenId)
+    {
+        var errors = new List<string>();
+
+        foreach (var medication in EditFixedMedications.Where(HasAnyFixedMedicationInput))
+        {
+            if (!TryBuildFixedMedicationPayload(medication, out var payload, out var error))
+            {
+                errors.Add(error);
+                continue;
+            }
+
+            HttpResponseMessage response;
+
+            if (medication.FixedMedicationId.HasValue)
+            {
+                response = await client.PutAsJsonAsync(
+                    $"api/citizens/{citizenId}/fixed-medications/{medication.FixedMedicationId.Value}",
+                    new
+                    {
+                        payload.Name,
+                        payload.Description,
+                        payload.ScheduledTime,
+                        payload.ShiftType,
+                        isActive = medication.IsActive
+                    });
+            }
+            else
+            {
+                response = await client.PostAsJsonAsync($"api/citizens/{citizenId}/fixed-medications", payload);
+            }
+
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    var apiMessage = await response.Content.ReadAsStringAsync();
+                    errors.Add(string.IsNullOrWhiteSpace(apiMessage)
+                        ? $"Kunne ikke gemme fast medicin '{medication.Name}'."
+                        : apiMessage);
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    private static bool HasAnyFixedMedicationInput(FixedMedicationInputModel medication)
+    {
+        return !string.IsNullOrWhiteSpace(medication.Name)
+            || !string.IsNullOrWhiteSpace(medication.Description)
+            || !string.IsNullOrWhiteSpace(medication.ScheduledTimeText);
+    }
+
+    private static bool TryBuildFixedMedicationPayload(
+        FixedMedicationInputModel medication,
+        out FixedMedicationPayload payload,
+        out string errorMessage)
+    {
+        payload = default;
+
+        if (string.IsNullOrWhiteSpace(medication.Name))
+        {
+            errorMessage = "Fast medicin mangler navn.";
+            return false;
+        }
+
+        if (!TimeOnly.TryParse(medication.ScheduledTimeText, out var scheduledTime))
+        {
+            errorMessage = $"Fast medicin '{medication.Name}' mangler gyldigt klokkeslæt.";
+            return false;
+        }
+
+        if (!ShiftTypeOptions.Any(option => option.Value == medication.ShiftType))
+        {
+            errorMessage = $"Fast medicin '{medication.Name}' mangler gyldig vagt.";
+            return false;
+        }
+
+        payload = new FixedMedicationPayload(
+            medication.Name.Trim(),
+            medication.Description.Trim(),
+            scheduledTime,
+            medication.ShiftType);
+
+        errorMessage = string.Empty;
+        return true;
+    }
+
+    private static string NormalizeTimeForInput(string scheduledTime)
+    {
+        if (TimeOnly.TryParse(scheduledTime, out var time))
+        {
+            return time.ToString("HH\\:mm");
+        }
+
+        if (DateTime.TryParse(scheduledTime, out var dateTime))
+        {
+            return dateTime.ToString("HH:mm");
+        }
+
+        return string.Empty;
+    }
+
     private CreateCitizenFormModel CreateDefaultCreateModel()
     {
         return new CreateCitizenFormModel
@@ -580,4 +979,28 @@
     private sealed record DepartmentOption(int Id, string Name);
 
     private sealed record TrafficLightOption(int Value, string Label);
+
+    private sealed record ShiftTypeOption(int Value, string Label);
+
+    private sealed class FixedMedicationInputModel
+    {
+        public int? FixedMedicationId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string ScheduledTimeText { get; set; } = string.Empty;
+        public int ShiftType { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    private sealed class FixedMedicationApiModel
+    {
+        public int FixedMedicationId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string ScheduledTime { get; set; } = string.Empty;
+        public int ShiftType { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private sealed record FixedMedicationPayload(string Name, string Description, TimeOnly ScheduledTime, int ShiftType);
 }
