@@ -8,15 +8,62 @@
 
 <section class="overlap-shell">
     <header class="overlap-header">
-        <div class="overlap-tags">
-            <span class="overlap-tag">@AuthService.SelectedDepartment</span>
-            <span class="overlap-tag overlap-tag-alt">@AuthService.SelectedShift</span>
-            <span class="overlap-tag overlap-tag-muted">@SelectedDate.ToString("dd-MM-yyyy")</span>
+        <div class="overlap-header-main">
+            <div class="overlap-tags">
+                <span class="overlap-tag">@AuthService.SelectedDepartment</span>
+                <span class="overlap-tag overlap-tag-alt">@AuthService.SelectedShift</span>
+                <span class="overlap-tag overlap-tag-muted">@SelectedDate.ToString("dd-MM-yyyy")</span>
+            </div>
+            <div>
+                <h1>@AuthService.SelectedDepartment overlapsystem</h1>
+                <p class="overlap-subtitle">Borgeroversigt for den valgte afdeling og vagt.</p>
+            </div>
         </div>
-        <div>
-            <h1>@AuthService.SelectedDepartment overlapsystem</h1>
-            <p class="overlap-subtitle">Borgeroversigt for den valgte afdeling og vagt.</p>
-        </div>
+        <aside class="overlap-shift-tasks" aria-live="polite">
+            <div class="overlap-shift-tasks-header">
+                <p class="overlap-shift-tasks-title">Vagtopgaver</p>
+                <button type="button"
+                        class="overlap-shift-tasks-add"
+                        title="Opret vagtopgave"
+                        aria-label="Opret vagtopgave"
+                        @onclick="OpenCreateShiftTaskModal"
+                        disabled="@(IsShiftTasksLoading || IsCreatingShiftTask || CurrentShiftId is null)">
+                    +
+                </button>
+            </div>
+            @if (IsLoading || IsShiftTasksLoading)
+            {
+                <p class="overlap-shift-tasks-status">Indlæser opgaver...</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(ShiftTasksErrorMessage))
+            {
+                <p class="overlap-shift-tasks-status overlap-shift-tasks-status-error">@ShiftTasksErrorMessage</p>
+            }
+            else if (ShiftTasks.Count == 0)
+            {
+                <p class="overlap-shift-tasks-status">Ingen opgaver på vagten.</p>
+            }
+            else
+            {
+                <ul class="overlap-shift-tasks-list">
+                    @foreach (var shiftTask in ShiftTasks)
+                    {
+                        <li class="overlap-shift-task-item @(shiftTask.Status == 2 ? "done" : string.Empty)">
+                            <span class="overlap-shift-task-description">@shiftTask.Description</span>
+                            <div class="overlap-shift-task-actions">
+                                <span class="overlap-shift-task-status">@GetShiftTaskStatusLabel(shiftTask.Status)</span>
+                                <button type="button"
+                                        class="overlap-shift-task-toggle"
+                                        @onclick="() => ToggleShiftTaskStatusAsync(shiftTask)"
+                                        disabled="@(!CanToggleShiftTask(shiftTask.Id))">
+                                    @(shiftTask.Status == 2 ? "Genåbn" : "Færdig")
+                                </button>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </aside>
     </header>
 
     <div class="overlap-toolbar">
@@ -108,6 +155,43 @@
         </div>
     }
 </section>
+
+@if (IsCreateShiftTaskModalOpen)
+{
+    <div class="modal fade show d-block overlap-modal-backdrop" tabindex="-1" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content overlap-modal overlap-shift-task-create-modal">
+                <div class="modal-header overlap-modal-header">
+                    <h2 class="modal-title h5 mb-0">Opret vagtopgave</h2>
+                    <button type="button"
+                            class="btn-close"
+                            aria-label="Close"
+                            @onclick="CloseCreateShiftTaskModal"
+                            disabled="@IsCreatingShiftTask"></button>
+                </div>
+                <div class="modal-body overlap-modal-body">
+                    @if (!string.IsNullOrWhiteSpace(CreateShiftTaskErrorMessage))
+                    {
+                        <div class="alert alert-danger mb-0" role="alert">@CreateShiftTaskErrorMessage</div>
+                    }
+                    <div class="overlap-modal-field">
+                        <label for="create-shift-task-description">Beskrivelse</label>
+                        <InputText id="create-shift-task-description"
+                                   class="form-control"
+                                   @bind-Value="NewShiftTaskDescription"
+                                   disabled="@IsCreatingShiftTask" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCreateShiftTaskModal" disabled="@IsCreatingShiftTask">Annuller</button>
+                    <button type="button" class="btn btn-primary" @onclick="CreateShiftTaskAsync" disabled="@IsCreatingShiftTask">
+                        @(IsCreatingShiftTask ? "Opretter..." : "Opret")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @if (SelectedCitizen is not null)
 {
@@ -257,8 +341,15 @@
 
     .overlap-header {
         display: grid;
-        gap: 0.6rem;
+        grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+        gap: 1rem;
+        align-items: start;
         margin-bottom: 1.6rem;
+    }
+
+    .overlap-header-main {
+        display: grid;
+        gap: 0.6rem;
     }
 
     .overlap-tags {
@@ -295,6 +386,122 @@
     .overlap-subtitle {
         margin: 0.2rem 0 0;
         color: #597166;
+    }
+
+    .overlap-shift-tasks {
+        border: 1px solid #d8e2dc;
+        border-radius: 0.9rem;
+        padding: 0.8rem;
+        background: #f8fbf9;
+    }
+
+    .overlap-shift-tasks-title {
+        margin: 0;
+        color: #365246;
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .overlap-shift-tasks-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .overlap-shift-tasks-add {
+        width: 1.65rem;
+        height: 1.65rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.45rem;
+        background: #ffffff;
+        color: #284439;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        line-height: 1;
+        font-weight: 700;
+    }
+
+    .overlap-shift-tasks-add:disabled {
+        opacity: 0.55;
+    }
+
+    .overlap-shift-tasks-status {
+        margin: 0.55rem 0 0;
+        color: #4f6a5f;
+        font-size: 0.82rem;
+    }
+
+    .overlap-shift-tasks-status-error {
+        color: #b42318;
+    }
+
+    .overlap-shift-tasks-list {
+        margin: 0.55rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .overlap-shift-task-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.6rem;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid #dbe6e0;
+        border-radius: 0.65rem;
+        padding: 0.45rem 0.55rem;
+    }
+
+    .overlap-shift-task-item.done {
+        background: #edf6f0;
+    }
+
+    .overlap-shift-task-description {
+        min-width: 0;
+        color: #284439;
+        font-size: 0.82rem;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .overlap-shift-task-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-shrink: 0;
+    }
+
+    .overlap-shift-task-status {
+        flex-shrink: 0;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #365246;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .overlap-shift-task-toggle {
+        border: 1px solid #bfd1c4;
+        border-radius: 0.45rem;
+        background: #ffffff;
+        color: #284439;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.2rem 0.45rem;
+        line-height: 1.2;
+    }
+
+    .overlap-shift-task-toggle:disabled {
+        opacity: 0.55;
     }
 
     .overlap-toolbar {
@@ -530,6 +737,10 @@
         overflow: hidden;
     }
 
+    .overlap-shift-task-create-modal {
+        max-width: 520px;
+    }
+
     .overlap-modal-header {
         align-items: start;
     }
@@ -633,6 +844,10 @@
     }
 
     @@media (max-width: 840px) {
+        .overlap-header {
+            grid-template-columns: 1fr;
+        }
+
         .overlap-grid {
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
@@ -663,12 +878,21 @@
 
     private CitizenOverviewResponse? Overview { get; set; }
     private List<CitizenCardModel> CitizenCards { get; set; } = [];
+    private List<ShiftTaskItemModel> ShiftTasks { get; set; } = [];
+    private int? CurrentShiftId { get; set; }
     private CitizenDetailModel? SelectedCitizen { get; set; }
     private string? LoadErrorMessage { get; set; }
+    private string? ShiftTasksErrorMessage { get; set; }
+    private string? CreateShiftTaskErrorMessage { get; set; }
     private string? SaveErrorMessage { get; set; }
     private string? SaveSuccessMessage { get; set; }
     private bool IsLoading { get; set; }
+    private bool IsShiftTasksLoading { get; set; }
+    private bool IsCreateShiftTaskModalOpen { get; set; }
+    private bool IsCreatingShiftTask { get; set; }
+    private HashSet<int> UpdatingShiftTaskIds { get; } = [];
     private bool IsSaving { get; set; }
+    private string NewShiftTaskDescription { get; set; } = string.Empty;
     private DateTime SelectedDate { get; set; } = DateTime.Today;
 
     private bool CanEditTrafficLight => AuthService.CurrentUser?.Role == "Admin";
@@ -742,6 +966,7 @@
 
             var resolvedShift = await shiftResponse.Content.ReadFromJsonAsync<ShiftLookupResponse>();
             var shiftId = resolvedShift?.ShiftId;
+            CurrentShiftId = shiftId;
 
             if (shiftId is null)
             {
@@ -753,6 +978,8 @@
                 };
                 return;
             }
+
+            await LoadShiftTasksAsync(client, shiftId.Value);
 
             using var response = await client.GetAsync($"api/overlap/departments/{departmentId}/shifts/{shiftId.Value}/citizens");
 
@@ -1117,8 +1344,186 @@
     {
         Overview = null;
         CitizenCards = [];
+        ShiftTasks = [];
+        CurrentShiftId = null;
+        ShiftTasksErrorMessage = null;
+        CreateShiftTaskErrorMessage = null;
+        IsCreateShiftTaskModalOpen = false;
+        IsCreatingShiftTask = false;
+        UpdatingShiftTaskIds.Clear();
+        NewShiftTaskDescription = string.Empty;
         SelectedCitizen = null;
         LoadErrorMessage = null;
+    }
+
+    private async Task LoadShiftTasksAsync(HttpClient client, int shiftId)
+    {
+        IsShiftTasksLoading = true;
+        ShiftTasksErrorMessage = null;
+
+        try
+        {
+            using var response = await client.GetAsync($"api/shifts/{shiftId}/tasks");
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                ShiftTasks = [];
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ShiftTasks = [];
+                ShiftTasksErrorMessage = "Kunne ikke hente vagtopgaver.";
+                return;
+            }
+
+            ShiftTasks = await response.Content.ReadFromJsonAsync<List<ShiftTaskItemModel>>() ?? [];
+        }
+        catch (TaskCanceledException)
+        {
+            ShiftTasks = [];
+            ShiftTasksErrorMessage = "Indlæsning af vagtopgaver tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            ShiftTasks = [];
+            ShiftTasksErrorMessage = "Kunne ikke hente vagtopgaver fra API'et.";
+        }
+        finally
+        {
+            IsShiftTasksLoading = false;
+        }
+    }
+
+    private void OpenCreateShiftTaskModal()
+    {
+        if (CurrentShiftId is null || IsShiftTasksLoading || IsCreatingShiftTask)
+        {
+            return;
+        }
+
+        NewShiftTaskDescription = string.Empty;
+        CreateShiftTaskErrorMessage = null;
+        IsCreateShiftTaskModalOpen = true;
+    }
+
+    private void CloseCreateShiftTaskModal()
+    {
+        if (IsCreatingShiftTask)
+        {
+            return;
+        }
+
+        IsCreateShiftTaskModalOpen = false;
+        CreateShiftTaskErrorMessage = null;
+        NewShiftTaskDescription = string.Empty;
+    }
+
+    private async Task CreateShiftTaskAsync()
+    {
+        if (CurrentShiftId is null)
+        {
+            CreateShiftTaskErrorMessage = "Kunne ikke finde den aktuelle vagt.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewShiftTaskDescription))
+        {
+            CreateShiftTaskErrorMessage = "Beskrivelse er påkrævet.";
+            return;
+        }
+
+        IsCreatingShiftTask = true;
+        CreateShiftTaskErrorMessage = null;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsJsonAsync(
+                $"api/shifts/{CurrentShiftId.Value}/tasks",
+                new { description = NewShiftTaskDescription.Trim() });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                CreateShiftTaskErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke oprette vagtopgaven."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadShiftTasksAsync(client, CurrentShiftId.Value);
+            IsCreateShiftTaskModalOpen = false;
+            NewShiftTaskDescription = string.Empty;
+        }
+        catch (TaskCanceledException)
+        {
+            CreateShiftTaskErrorMessage = "Oprettelse af vagtopgave tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            CreateShiftTaskErrorMessage = "Kunne ikke oprette vagtopgave via API'et.";
+        }
+        finally
+        {
+            IsCreatingShiftTask = false;
+        }
+    }
+
+    private bool CanToggleShiftTask(int shiftTaskId)
+    {
+        return CurrentShiftId is not null
+               && !IsShiftTasksLoading
+               && !IsCreatingShiftTask
+               && !UpdatingShiftTaskIds.Contains(shiftTaskId);
+    }
+
+    private async Task ToggleShiftTaskStatusAsync(ShiftTaskItemModel shiftTask)
+    {
+        if (CurrentShiftId is null || !CanToggleShiftTask(shiftTask.Id))
+        {
+            return;
+        }
+
+        UpdatingShiftTaskIds.Add(shiftTask.Id);
+        ShiftTasksErrorMessage = null;
+        var newStatus = shiftTask.Status == 2 ? 1 : 2;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.PutAsJsonAsync(
+                $"api/shifts/{CurrentShiftId.Value}/tasks/{shiftTask.Id}",
+                new
+                {
+                    description = shiftTask.Description,
+                    status = newStatus
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                ShiftTasksErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke opdatere vagtopgaven."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadShiftTasksAsync(client, CurrentShiftId.Value);
+        }
+        catch (TaskCanceledException)
+        {
+            ShiftTasksErrorMessage = "Opdatering af vagtopgave tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            ShiftTasksErrorMessage = "Kunne ikke opdatere vagtopgave via API'et.";
+        }
+        finally
+        {
+            UpdatingShiftTaskIds.Remove(shiftTask.Id);
+        }
     }
 
     private List<CitizenCardModel> BuildCitizenCards(CitizenOverviewResponse? overview)
@@ -1225,6 +1630,15 @@
         };
     }
 
+    private static string GetShiftTaskStatusLabel(int status)
+    {
+        return status switch
+        {
+            2 => "Færdig",
+            _ => "Åben"
+        };
+    }
+
     private sealed record TrafficLightOption(int Value, string Label);
 
     private sealed class CitizenOverviewResponse
@@ -1318,5 +1732,13 @@
     {
         public int EmployeeId { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ShiftTaskItemModel
+    {
+        public int Id { get; set; }
+        public int ShiftId { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public int Status { get; set; }
     }
 }
