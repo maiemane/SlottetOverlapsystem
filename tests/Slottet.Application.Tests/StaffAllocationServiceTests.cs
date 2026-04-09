@@ -41,6 +41,32 @@ public class StaffAllocationServiceTests
     }
 
     [Fact]
+    public async Task GetShiftByDepartmentDateAndTypeAsync_Returns_shift_lookup_when_match_exists()
+    {
+        var repository = new FakeStaffAllocationRepository();
+        var sut = new StaffAllocationService(repository);
+
+        var result = await sut.GetShiftByDepartmentDateAndTypeAsync(1, new DateTime(2026, 4, 8, 14, 0, 0), ShiftType.Aftenvagt, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(11, result!.ShiftId);
+        Assert.Equal(1, result.DepartmentId);
+        Assert.Equal(new DateTime(2026, 4, 8), result.Date);
+        Assert.Equal(ShiftType.Aftenvagt, result.ShiftType);
+    }
+
+    [Fact]
+    public async Task GetShiftByDepartmentDateAndTypeAsync_Returns_null_when_department_does_not_exist()
+    {
+        var repository = new FakeStaffAllocationRepository();
+        var sut = new StaffAllocationService(repository);
+
+        var result = await sut.GetShiftByDepartmentDateAndTypeAsync(99, new DateTime(2026, 4, 8), ShiftType.Dagvagt, CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task GetCitizenEmployeesAsync_Returns_staffing_for_citizen_on_shift()
     {
         var repository = new FakeStaffAllocationRepository();
