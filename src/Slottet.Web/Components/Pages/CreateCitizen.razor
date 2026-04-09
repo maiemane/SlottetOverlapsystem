@@ -149,18 +149,9 @@
                                                     <textarea class="form-control" rows="2" @onchange="args => medication.Description = args.Value?.ToString() ?? string.Empty">@medication.Description</textarea>
                                                 </div>
                                                 <div class="row g-2">
-                                                    <div class="col-6">
+                                                    <div class="col-12">
                                                         <label class="form-label">Klokkeslæt</label>
                                                         <input type="time" class="form-control" value="@medication.ScheduledTimeText" @onchange="args => medication.ScheduledTimeText = args.Value?.ToString() ?? string.Empty" />
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <label class="form-label">Vagt</label>
-                                                        <select class="form-select" value="@medication.ShiftType" @onchange="args => HandleCreateMedicationShiftTypeChanged(rowIndex, args)">
-                                                            @foreach (var option in ShiftTypeOptions)
-                                                            {
-                                                                <option value="@option.Value">@option.Label</option>
-                                                            }
-                                                        </select>
                                                     </div>
                                                 </div>
                                                 <div class="text-end mt-2">
@@ -278,18 +269,9 @@
                                                     <textarea class="form-control" rows="2" @onchange="args => medication.Description = args.Value?.ToString() ?? string.Empty">@medication.Description</textarea>
                                                 </div>
                                                 <div class="row g-2">
-                                                    <div class="col-6">
+                                                    <div class="col-12">
                                                         <label class="form-label">Klokkeslæt</label>
                                                         <input type="time" class="form-control" value="@medication.ScheduledTimeText" @onchange="args => medication.ScheduledTimeText = args.Value?.ToString() ?? string.Empty" />
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <label class="form-label">Vagt</label>
-                                                        <select class="form-select" value="@medication.ShiftType" @onchange="args => HandleEditMedicationShiftTypeChanged(rowIndex, args)">
-                                                            @foreach (var option in ShiftTypeOptions)
-                                                            {
-                                                                <option value="@option.Value">@option.Label</option>
-                                                            }
-                                                        </select>
                                                     </div>
                                                 </div>
 
@@ -373,13 +355,6 @@
         new(1, "Grøn"),
         new(2, "Gul"),
         new(3, "Rød")
-    ];
-
-    private static readonly IReadOnlyList<ShiftTypeOption> ShiftTypeOptions =
-    [
-        new(1, "Dagvagt"),
-        new(2, "Aftenvagt"),
-        new(3, "Nattevagt")
     ];
 
     private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
@@ -686,15 +661,13 @@
             var medications = await response.Content.ReadFromJsonAsync<List<FixedMedicationApiModel>>();
 
             EditFixedMedications = medications?
-                .OrderBy(medication => medication.ShiftType)
-                .ThenBy(medication => medication.ScheduledTime)
+                .OrderBy(medication => medication.ScheduledTime)
                 .Select(medication => new FixedMedicationInputModel
                 {
                     FixedMedicationId = medication.FixedMedicationId,
                     Name = medication.Name,
                     Description = medication.Description,
                     ScheduledTimeText = NormalizeTimeForInput(medication.ScheduledTime),
-                    ShiftType = medication.ShiftType,
                     IsActive = medication.IsActive
                 })
                 .ToList() ?? [];
@@ -713,7 +686,6 @@
     {
         CreateFixedMedications.Add(new FixedMedicationInputModel
         {
-            ShiftType = ShiftTypeOptions[0].Value,
             IsActive = true
         });
     }
@@ -732,7 +704,6 @@
     {
         EditFixedMedications.Add(new FixedMedicationInputModel
         {
-            ShiftType = ShiftTypeOptions[0].Value,
             IsActive = true
         });
     }
@@ -750,32 +721,6 @@
         }
 
         EditFixedMedications.RemoveAt(index);
-    }
-
-    private void HandleCreateMedicationShiftTypeChanged(int index, ChangeEventArgs args)
-    {
-        if (index < 0 || index >= CreateFixedMedications.Count)
-        {
-            return;
-        }
-
-        if (int.TryParse(args.Value?.ToString(), out var shiftType))
-        {
-            CreateFixedMedications[index].ShiftType = shiftType;
-        }
-    }
-
-    private void HandleEditMedicationShiftTypeChanged(int index, ChangeEventArgs args)
-    {
-        if (index < 0 || index >= EditFixedMedications.Count)
-        {
-            return;
-        }
-
-        if (int.TryParse(args.Value?.ToString(), out var shiftType))
-        {
-            EditFixedMedications[index].ShiftType = shiftType;
-        }
     }
 
     private async Task<List<string>> SaveCreateFixedMedicationsAsync(HttpClient client, int citizenId)
@@ -827,7 +772,6 @@
                         payload.Name,
                         payload.Description,
                         payload.ScheduledTime,
-                        payload.ShiftType,
                         isActive = medication.IsActive
                     });
             }
@@ -877,17 +821,10 @@
             return false;
         }
 
-        if (!ShiftTypeOptions.Any(option => option.Value == medication.ShiftType))
-        {
-            errorMessage = $"Fast medicin '{medication.Name}' mangler gyldig vagt.";
-            return false;
-        }
-
         payload = new FixedMedicationPayload(
             medication.Name.Trim(),
             medication.Description.Trim(),
-            scheduledTime,
-            medication.ShiftType);
+            scheduledTime);
 
         errorMessage = string.Empty;
         return true;
@@ -980,15 +917,12 @@
 
     private sealed record TrafficLightOption(int Value, string Label);
 
-    private sealed record ShiftTypeOption(int Value, string Label);
-
     private sealed class FixedMedicationInputModel
     {
         public int? FixedMedicationId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string ScheduledTimeText { get; set; } = string.Empty;
-        public int ShiftType { get; set; }
         public bool IsActive { get; set; } = true;
     }
 
@@ -998,9 +932,8 @@
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string ScheduledTime { get; set; } = string.Empty;
-        public int ShiftType { get; set; }
         public bool IsActive { get; set; }
     }
 
-    private sealed record FixedMedicationPayload(string Name, string Description, TimeOnly ScheduledTime, int ShiftType);
+    private sealed record FixedMedicationPayload(string Name, string Description, TimeOnly ScheduledTime);
 }
