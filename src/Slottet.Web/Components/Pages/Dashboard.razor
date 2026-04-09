@@ -7,9 +7,12 @@
 <PageTitle>Overlapssystem</PageTitle>
 
 <section class="overlap-shell">
-    <div class="overlap-page-disclaimer" role="note" aria-live="polite">
-        @GetSelectedDepartmentMessageOrFallback()
-    </div>
+    @if (!string.IsNullOrWhiteSpace(GetSelectedDepartmentMessage()))
+    {
+        <div class="overlap-page-disclaimer" role="note" aria-live="polite">
+            @GetSelectedDepartmentMessage()
+        </div>
+    }
 
     <header class="overlap-header">
         <div class="overlap-header-main">
@@ -1117,14 +1120,6 @@
         return DepartmentMessages.TryGetValue(AuthService.SelectedDepartment, out var message)
             ? message
             : string.Empty;
-    }
-
-    private string GetSelectedDepartmentMessageOrFallback()
-    {
-        var message = GetSelectedDepartmentMessage();
-        return string.IsNullOrWhiteSpace(message)
-            ? $"Ingen afdelingsbesked for {AuthService.SelectedDepartment}."
-            : message;
     }
 
     private void OpenCitizenModal(int citizenId)
