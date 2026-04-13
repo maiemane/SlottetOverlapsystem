@@ -9,11 +9,42 @@ namespace Slottet.Infrastructure.Data;
 
 public class ApplicationDbContext : DbContext, IDataProtectionKeyContext
 {
+    private const string RedactedValue = "[REDACTED]";
+
     private static readonly HashSet<string> SensitivePropertyNames =
     [
         "Password",
         "PasswordHash"
     ];
+
+    private static readonly Dictionary<string, HashSet<string>> SensitiveAuditPropertiesByEntity = new(StringComparer.Ordinal)
+    {
+        [nameof(Citizen)] = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(Citizen.Name),
+            nameof(Citizen.ApartmentNumber)
+        },
+        [nameof(Employee)] = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(Employee.Name),
+            nameof(Employee.Email),
+            nameof(Employee.PasswordHash)
+        },
+        [nameof(CitizenFixedMedication)] = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(CitizenFixedMedication.Name),
+            nameof(CitizenFixedMedication.Description)
+        },
+        [nameof(MedicinRegistration)] = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(MedicinRegistration.Name),
+            nameof(MedicinRegistration.Description)
+        },
+        [nameof(SpecialEvent)] = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(SpecialEvent.Description)
+        }
+    };
 
     private readonly ICurrentUserContext? _currentUserContext;
 
@@ -331,18 +362,29 @@ public class ApplicationDbContext : DbContext, IDataProtectionKeyContext
                     continue;
                 }
 
+                var propertyName = property.Metadata.Name;
+                var redactValue = ShouldRedactAuditProperty(entry.Metadata.ClrType.Name, propertyName);
+
                 if (entry.State == EntityState.Added)
                 {
-                    newValues[property.Metadata.Name] = property.CurrentValue;
+                    newValues[propertyName] = redactValue
+                        ? RedactedValue
+                        : property.CurrentValue;
                 }
                 else if (entry.State == EntityState.Deleted)
                 {
-                    oldValues[property.Metadata.Name] = property.OriginalValue;
+                    oldValues[propertyName] = redactValue
+                        ? RedactedValue
+                        : property.OriginalValue;
                 }
                 else if (property.IsModified)
                 {
-                    oldValues[property.Metadata.Name] = property.OriginalValue;
-                    newValues[property.Metadata.Name] = property.CurrentValue;
+                    oldValues[propertyName] = redactValue
+                        ? RedactedValue
+                        : property.OriginalValue;
+                    newValues[propertyName] = redactValue
+                        ? RedactedValue
+                        : property.CurrentValue;
                 }
             }
 
@@ -401,5 +443,11 @@ public class ApplicationDbContext : DbContext, IDataProtectionKeyContext
         return values.Count == 0
             ? string.Empty
             : JsonSerializer.Serialize(values);
+    }
+
+    private static bool ShouldRedactAuditProperty(string entityName, string propertyName)
+    {
+        return SensitiveAuditPropertiesByEntity.TryGetValue(entityName, out var properties)
+               && properties.Contains(propertyName);
     }
 }

@@ -1,33 +1,37 @@
 @page "/admin/logs"
 @using System.Net
 @using System.Net.Http.Json
+@using System.Text.Json
 @inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
-<PageTitle>Audit Logs</PageTitle>
+<PageTitle>Logs & GDPR</PageTitle>
 
 @if (IsAdmin)
 {
     <section class="logs-shell">
         <header class="logs-header">
             <div>
-                <h1>Audit Logs</h1>
-                <p>Viser de nyeste audit- og access logs for systemet.</p>
+                <h1>Logs & GDPR</h1>
+                <p>Vis audit logs, access logs og GDPR-handlinger for borgere samlet ét sted.</p>
             </div>
-            <div class="logs-header-actions">
-                <label class="logs-take">
-                    <span>Antal</span>
-                    <select value="@SelectedTake" @onchange="HandleTakeChangedAsync">
-                        @foreach (var option in TakeOptions)
-                        {
-                            <option value="@option">@option</option>
-                        }
-                    </select>
-                </label>
-                <button type="button" class="btn btn-outline-secondary" @onclick="RefreshAsync" disabled="@IsLoading">
-                    @(IsLoading ? "Opdaterer..." : "Opdater")
-                </button>
-            </div>
+            @if (ActiveTab is LogsTab.Audit or LogsTab.Access)
+            {
+                <div class="logs-header-actions">
+                    <label class="logs-take">
+                        <span>Antal</span>
+                        <select value="@SelectedTake" @onchange="HandleTakeChangedAsync">
+                            @foreach (var option in TakeOptions)
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="RefreshAsync" disabled="@IsBusy">
+                        @(IsBusy ? "Opdaterer..." : "Opdater")
+                    </button>
+                </div>
+            }
         </header>
 
         @if (!string.IsNullOrWhiteSpace(StatusMessage))
@@ -45,8 +49,14 @@
             <button type="button"
                     class="logs-tab @(ActiveTab == LogsTab.Access ? "active" : string.Empty)"
                     @onclick="() => SetTabAsync(LogsTab.Access)"
-                    disabled="@IsLoading">
+                    disabled="@IsBusy">
                 Access logs
+            </button>
+            <button type="button"
+                    class="logs-tab @(ActiveTab == LogsTab.Gdpr ? "active" : string.Empty)"
+                    @onclick="() => SetTabAsync(LogsTab.Gdpr)"
+                    disabled="@IsBusy">
+                GDPR
             </button>
         </div>
 
@@ -146,6 +156,80 @@
                         </table>
                     </div>
                 }
+            }
+            else
+            {
+                <section class="gdpr-panel">
+                    <div class="gdpr-toolbar">
+                        <label class="gdpr-field">
+                            <span>Borger</span>
+                            <select value="@SelectedCitizenId" @onchange="HandleCitizenChangedAsync" disabled="@IsBusy">
+                                <option value="">Vælg borger</option>
+                                @foreach (var citizen in Citizens)
+                                {
+                                    <option value="@citizen.Id">@($"{citizen.Name} - lejlighed {citizen.ApartmentNumber}")</option>
+                                }
+                            </select>
+                        </label>
+
+                        <div class="gdpr-actions">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="ExportPersonalDataAsync" disabled="@(!CanManageCitizenData)">
+                                @(IsExportingCitizenData ? "Eksporterer..." : "Eksporter persondata")
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="AnonymizeCitizenAsync" disabled="@(!CanManageCitizenData)">
+                                @(IsAnonymizingCitizen ? "Anonymiserer..." : "Anonymiser borger")
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="gdpr-note">
+                        Brug eksport til indsigt i registrerede personoplysninger. Brug anonymisering, når data ikke længere skal være direkte personhenførbare, men relationer og sporbarhed skal bevares.
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(GdprStatusMessage))
+                    {
+                        <div class="alert @GdprStatusCssClass" role="alert">@GdprStatusMessage</div>
+                    }
+
+                    @if (IsLoadingCitizenData)
+                    {
+                        <p class="mb-0">Indlæser persondata...</p>
+                    }
+                    else if (ExportedCitizenData is null)
+                    {
+                        <p class="mb-0">Vælg en borger og hent persondata for at se eksporten her.</p>
+                    }
+                    else
+                    {
+                        <div class="gdpr-summary-grid">
+                            <article class="gdpr-summary-card">
+                                <span class="gdpr-summary-label">Borger</span>
+                                <strong>@ExportedCitizenData.Citizen.Name</strong>
+                                <span>Lejlighed @ExportedCitizenData.Citizen.ApartmentNumber</span>
+                            </article>
+                            <article class="gdpr-summary-card">
+                                <span class="gdpr-summary-label">Fast medicin</span>
+                                <strong>@ExportedCitizenData.FixedMedications.Count</strong>
+                                <span>Registreringer i systemet</span>
+                            </article>
+                            <article class="gdpr-summary-card">
+                                <span class="gdpr-summary-label">Medicinregistreringer</span>
+                                <strong>@ExportedCitizenData.MedicationRegistrations.Count</strong>
+                                <span>Historiske registreringer</span>
+                            </article>
+                            <article class="gdpr-summary-card">
+                                <span class="gdpr-summary-label">Særlige hændelser</span>
+                                <strong>@ExportedCitizenData.SpecialEvents.Count</strong>
+                                <span>Eksporteret til indsigt</span>
+                            </article>
+                        </div>
+
+                        <details class="gdpr-json-details" open>
+                            <summary>Vis eksporteret JSON</summary>
+                            <pre>@ExportedCitizenJson</pre>
+                        </details>
+                    }
+                </section>
             }
         </section>
     </section>
@@ -247,19 +331,113 @@
         white-space: pre-wrap;
         word-break: break-word;
     }
+
+    .gdpr-panel {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .gdpr-toolbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: end;
+        flex-wrap: wrap;
+    }
+
+    .gdpr-field {
+        display: grid;
+        gap: 0.25rem;
+        min-width: min(26rem, 100%);
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #486257;
+    }
+
+    .gdpr-field select {
+        padding: 0.55rem 0.7rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.65rem;
+        background: #fff;
+    }
+
+    .gdpr-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .gdpr-note {
+        padding: 0.85rem 1rem;
+        border: 1px solid #d6e2da;
+        border-radius: 0.9rem;
+        background: #f6faf8;
+        color: #365548;
+    }
+
+    .gdpr-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: 0.85rem;
+    }
+
+    .gdpr-summary-card {
+        display: grid;
+        gap: 0.25rem;
+        padding: 0.95rem;
+        border: 1px solid #d6e2da;
+        border-radius: 0.9rem;
+        background: #f9fcfa;
+    }
+
+    .gdpr-summary-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #5d7469;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .gdpr-json-details summary {
+        cursor: pointer;
+        font-weight: 700;
+        color: #234036;
+    }
+
+    .gdpr-json-details pre {
+        margin: 0.75rem 0 0;
+        padding: 0.85rem;
+        border-radius: 0.85rem;
+        background: #f6f8f7;
+        color: #234036;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
 </style>
 
 @code {
     private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private bool IsBusy => IsLoading || IsLoadingCitizenData || IsExportingCitizenData || IsAnonymizingCitizen;
+    private bool CanManageCitizenData => !string.IsNullOrWhiteSpace(SelectedCitizenId) && !IsBusy;
 
     private readonly int[] TakeOptions = [25, 50, 100, 250, 500];
+    private static readonly JsonSerializerOptions ExportJsonOptions = new() { WriteIndented = true };
 
     private LogsTab ActiveTab { get; set; } = LogsTab.Audit;
     private int SelectedTake { get; set; } = 100;
     private bool IsLoading { get; set; }
+    private bool IsLoadingCitizenData { get; set; }
+    private bool IsExportingCitizenData { get; set; }
+    private bool IsAnonymizingCitizen { get; set; }
     private string? StatusMessage { get; set; }
+    private string? GdprStatusMessage { get; set; }
+    private string GdprStatusCssClass { get; set; } = "alert-info";
+    private string? SelectedCitizenId { get; set; }
+    private string? ExportedCitizenJson { get; set; }
+    private CitizenPersonalDataExportRow? ExportedCitizenData { get; set; }
     private List<AuditLogRow> AuditLogs { get; set; } = [];
     private List<AccessLogRow> AccessLogs { get; set; } = [];
+    private List<CitizenOptionRow> Citizens { get; set; } = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -280,7 +458,14 @@
         }
 
         ActiveTab = tab;
-        await LoadActiveTabAsync();
+        if (tab == LogsTab.Gdpr)
+        {
+            await EnsureCitizensLoadedAsync();
+        }
+        else
+        {
+            await LoadActiveTabAsync();
+        }
     }
 
     private async Task HandleTakeChangedAsync(ChangeEventArgs args)
@@ -294,7 +479,9 @@
 
     private Task RefreshAsync()
     {
-        return LoadActiveTabAsync();
+        return ActiveTab == LogsTab.Gdpr
+            ? EnsureCitizensLoadedAsync(forceReload: true)
+            : LoadActiveTabAsync();
     }
 
     private async Task LoadActiveTabAsync()
@@ -320,6 +507,168 @@
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private async Task EnsureCitizensLoadedAsync(bool forceReload = false)
+    {
+        if (!forceReload && Citizens.Count > 0)
+        {
+            return;
+        }
+
+        IsLoadingCitizenData = true;
+        GdprStatusMessage = null;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/citizens");
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                GdprStatusMessage = "Du har ikke adgang til borgerdata.";
+                GdprStatusCssClass = "alert-danger";
+                Citizens = [];
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            Citizens = await response.Content.ReadFromJsonAsync<List<CitizenOptionRow>>() ?? [];
+            Citizens = Citizens
+                .OrderBy(citizen => citizen.Name)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(SelectedCitizenId)
+                && Citizens.All(citizen => citizen.Id.ToString() != SelectedCitizenId))
+            {
+                SelectedCitizenId = null;
+                ExportedCitizenData = null;
+                ExportedCitizenJson = null;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            GdprStatusMessage = "Kunne ikke hente borgere fra API'et.";
+            GdprStatusCssClass = "alert-danger";
+        }
+        finally
+        {
+            IsLoadingCitizenData = false;
+        }
+    }
+
+    private async Task HandleCitizenChangedAsync(ChangeEventArgs args)
+    {
+        SelectedCitizenId = args.Value?.ToString();
+        ExportedCitizenData = null;
+        ExportedCitizenJson = null;
+        GdprStatusMessage = null;
+
+        if (!string.IsNullOrWhiteSpace(SelectedCitizenId))
+        {
+            await ExportPersonalDataAsync();
+        }
+    }
+
+    private async Task ExportPersonalDataAsync()
+    {
+        if (!int.TryParse(SelectedCitizenId, out var citizenId))
+        {
+            return;
+        }
+
+        IsExportingCitizenData = true;
+        GdprStatusMessage = null;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync($"api/citizens/{citizenId}/personal-data");
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                GdprStatusMessage = "Du har ikke adgang til eksport af persondata.";
+                GdprStatusCssClass = "alert-danger";
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                GdprStatusMessage = "Borgeren blev ikke fundet.";
+                GdprStatusCssClass = "alert-danger";
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            ExportedCitizenData = await response.Content.ReadFromJsonAsync<CitizenPersonalDataExportRow>();
+            ExportedCitizenJson = ExportedCitizenData is null
+                ? null
+                : JsonSerializer.Serialize(ExportedCitizenData, ExportJsonOptions);
+
+            GdprStatusMessage = ExportedCitizenData is null
+                ? "Eksporten indeholdt ingen data."
+                : "Persondata blev eksporteret.";
+            GdprStatusCssClass = ExportedCitizenData is null ? "alert-warning" : "alert-success";
+        }
+        catch (HttpRequestException)
+        {
+            GdprStatusMessage = "Kunne ikke eksportere persondata fra API'et.";
+            GdprStatusCssClass = "alert-danger";
+        }
+        finally
+        {
+            IsExportingCitizenData = false;
+        }
+    }
+
+    private async Task AnonymizeCitizenAsync()
+    {
+        if (!int.TryParse(SelectedCitizenId, out var citizenId))
+        {
+            return;
+        }
+
+        IsAnonymizingCitizen = true;
+        GdprStatusMessage = null;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsync($"api/citizens/{citizenId}/anonymize", content: null);
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                GdprStatusMessage = "Du har ikke adgang til anonymisering.";
+                GdprStatusCssClass = "alert-danger";
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                GdprStatusMessage = "Borgeren blev ikke fundet.";
+                GdprStatusCssClass = "alert-danger";
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            GdprStatusMessage = "Borgeren og tilknyttede persondata blev anonymiseret.";
+            GdprStatusCssClass = "alert-success";
+
+            await EnsureCitizensLoadedAsync(forceReload: true);
+            await ExportPersonalDataAsync();
+        }
+        catch (HttpRequestException)
+        {
+            GdprStatusMessage = "Kunne ikke anonymisere borgeren via API'et.";
+            GdprStatusCssClass = "alert-danger";
+        }
+        finally
+        {
+            IsAnonymizingCitizen = false;
         }
     }
 
@@ -374,7 +723,54 @@
     private enum LogsTab
     {
         Audit,
-        Access
+        Access,
+        Gdpr
+    }
+
+    private sealed class CitizenOptionRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+    }
+
+    private sealed class CitizenPersonalDataExportRow
+    {
+        public DateTime ExportedAtUtc { get; set; }
+        public CitizenPersonalDataRow Citizen { get; set; } = new();
+        public List<CitizenFixedMedicationPersonalDataRow> FixedMedications { get; set; } = [];
+        public List<CitizenMedicationRegistrationPersonalDataRow> MedicationRegistrations { get; set; } = [];
+        public List<CitizenSpecialEventPersonalDataRow> SpecialEvents { get; set; } = [];
+    }
+
+    private sealed class CitizenPersonalDataRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+        public int DepartmentId { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class CitizenFixedMedicationPersonalDataRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class CitizenMedicationRegistrationPersonalDataRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    private sealed class CitizenSpecialEventPersonalDataRow
+    {
+        public int Id { get; set; }
+        public string Description { get; set; } = string.Empty;
     }
 
     private sealed class AuditLogRow

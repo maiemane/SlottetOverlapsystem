@@ -156,10 +156,145 @@ public class CreateCitizenServiceTests
         Assert.Equal("HasRelations", result.Error);
     }
 
+    [Fact]
+    public async Task ExportPersonalDataAsync_Returns_citizen_related_data()
+    {
+        var repository = new FakeCitizenCreationRepository
+        {
+            CitizenById = new Citizen
+            {
+                Id = 10,
+                Name = "Anna Jensen",
+                ApartmentNumber = "12A",
+                TrafficLight = TrafficLight.Gul,
+                DepartmentId = 1,
+                IsActive = true
+            },
+            FixedMedications =
+            [
+                new CitizenFixedMedication
+                {
+                    Id = 21,
+                    CitizenId = 10,
+                    Name = "Panodil",
+                    Description = "500 mg",
+                    ScheduledTime = new TimeOnly(8, 0),
+                    ShiftType = ShiftType.Dagvagt,
+                    IsActive = true
+                }
+            ],
+            MedicationRegistrations =
+            [
+                new MedicinRegistration
+                {
+                    Id = 31,
+                    CitizenId = 10,
+                    ShiftId = 5,
+                    CitizenFixedMedicationId = 21,
+                    MedicinType = MedicinType.Fast,
+                    Name = "Panodil",
+                    Description = "Givet",
+                    ScheduledTime = new DateTime(2026, 4, 10, 8, 0, 0, DateTimeKind.Utc),
+                    RegistrationTime = new DateTime(2026, 4, 10, 8, 5, 0, DateTimeKind.Utc)
+                }
+            ],
+            SpecialEvents =
+            [
+                new SpecialEvent
+                {
+                    Id = 41,
+                    CitizenId = 10,
+                    ShiftId = 5,
+                    Description = "Urolig nat",
+                    EventTime = new DateTime(2026, 4, 10, 1, 0, 0, DateTimeKind.Utc)
+                }
+            ]
+        };
+        var sut = new CreateCitizenService(repository);
+
+        var result = await sut.ExportPersonalDataAsync(10, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(10, result!.Citizen.Id);
+        Assert.Single(result.FixedMedications);
+        Assert.Single(result.MedicationRegistrations);
+        Assert.Single(result.SpecialEvents);
+    }
+
+    [Fact]
+    public async Task AnonymizeAsync_Redacts_citizen_and_related_data()
+    {
+        var citizen = new Citizen
+        {
+            Id = 10,
+            Name = "Anna Jensen",
+            ApartmentNumber = "12A",
+            TrafficLight = TrafficLight.Rød,
+            DepartmentId = 1,
+            IsActive = true
+        };
+        var fixedMedication = new CitizenFixedMedication
+        {
+            Id = 21,
+            CitizenId = 10,
+            Name = "Panodil",
+            Description = "500 mg",
+            ScheduledTime = new TimeOnly(8, 0),
+            ShiftType = ShiftType.Dagvagt,
+            IsActive = true
+        };
+        var medicationRegistration = new MedicinRegistration
+        {
+            Id = 31,
+            CitizenId = 10,
+            ShiftId = 5,
+            CitizenFixedMedicationId = 21,
+            MedicinType = MedicinType.Fast,
+            Name = "Panodil",
+            Description = "Givet",
+            ScheduledTime = new DateTime(2026, 4, 10, 8, 0, 0, DateTimeKind.Utc),
+            RegistrationTime = new DateTime(2026, 4, 10, 8, 5, 0, DateTimeKind.Utc)
+        };
+        var specialEvent = new SpecialEvent
+        {
+            Id = 41,
+            CitizenId = 10,
+            ShiftId = 5,
+            Description = "Urolig nat",
+            EventTime = new DateTime(2026, 4, 10, 1, 0, 0, DateTimeKind.Utc)
+        };
+
+        var repository = new FakeCitizenCreationRepository
+        {
+            CitizenById = citizen,
+            FixedMedications = [fixedMedication],
+            MedicationRegistrations = [medicationRegistration],
+            SpecialEvents = [specialEvent]
+        };
+        var sut = new CreateCitizenService(repository);
+
+        var result = await sut.AnonymizeAsync(10, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Anonymiseret borger #10", citizen.Name);
+        Assert.Equal("ANON", citizen.ApartmentNumber);
+        Assert.Equal(TrafficLight.Grøn, citizen.TrafficLight);
+        Assert.False(citizen.IsActive);
+        Assert.Equal("Anonymiseret medicin", fixedMedication.Name);
+        Assert.Equal("Anonymiseret", fixedMedication.Description);
+        Assert.False(fixedMedication.IsActive);
+        Assert.Equal("Anonymiseret medicin", medicationRegistration.Name);
+        Assert.Equal("Anonymiseret", medicationRegistration.Description);
+        Assert.Equal("Anonymiseret", specialEvent.Description);
+    }
+
     private sealed class FakeCitizenCreationRepository : ICitizenCreationRepository
     {
         public IReadOnlyList<Citizen> Citizens { get; init; } = [];
         public Citizen? CitizenById { get; init; }
+        public IReadOnlyList<CitizenFixedMedication> FixedMedications { get; init; } = [];
+        public IReadOnlyList<MedicinRegistration> MedicationRegistrations { get; init; } = [];
+        public IReadOnlyList<SpecialEvent> SpecialEvents { get; init; } = [];
         public Citizen? UpdatedCitizen { get; private set; }
         public int? DeletedCitizenId { get; private set; }
         public bool DeleteSucceeds { get; init; } = true;
@@ -208,7 +343,17 @@ public class CreateCitizenServiceTests
 
         public Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<CitizenFixedMedication>>([]);
+            return Task.FromResult(FixedMedications);
+        }
+
+        public Task<IReadOnlyList<MedicinRegistration>> GetMedicationRegistrationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(MedicationRegistrations);
+        }
+
+        public Task<IReadOnlyList<SpecialEvent>> GetSpecialEventsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SpecialEvents);
         }
 
         public Task<Citizen> AddCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default)
