@@ -1,0 +1,11 @@
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ReverseProxy__Enabled: "${SLOTTET_REVERSE_PROXY_ENABLED:-true}"
+      Swagger__Enabled: "${SLOTTET_SWAGGER_ENABLED:-false}"
+
+  web:
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ReverseProxy__Enabled: "${SLOTTET_REVERSE_PROXY_ENABLED:-true}"

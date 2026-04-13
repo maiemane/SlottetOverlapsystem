@@ -33,3 +33,6 @@ secrets.json
 # Publish output
 publish/
 out/
+.env
+.env.*
+!.env.example
