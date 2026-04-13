@@ -206,6 +206,57 @@
             }
         </div>
     }
+
+    <section class="overlap-phone-board" aria-live="polite">
+        <div class="overlap-phone-board-header">
+            <h2>Telefonfordeling</h2>
+            @if (CanManagePhoneAllocations)
+            {
+                <button type="button"
+                        class="overlap-shift-tasks-add"
+                        title="Tildel telefon"
+                        aria-label="Tildel telefon"
+                        @onclick="OpenCreatePhoneAllocationModalAsync"
+                        disabled="@(IsLoading || IsPhoneAllocationsLoading || IsCreatingPhoneAllocation || CurrentShiftId is null)">
+                    +
+                </button>
+            }
+        </div>
+        @if (IsLoading || IsPhoneAllocationsLoading)
+        {
+            <p class="overlap-shift-tasks-status">Indlæser telefonfordeling...</p>
+        }
+        else if (!string.IsNullOrWhiteSpace(PhoneAllocationsErrorMessage))
+        {
+            <p class="overlap-shift-tasks-status overlap-shift-tasks-status-error">@PhoneAllocationsErrorMessage</p>
+        }
+        else if (PhoneAllocations.Count == 0)
+        {
+            <p class="overlap-shift-tasks-status">Ingen telefoner er tildelt på vagten.</p>
+        }
+        else
+        {
+            <div class="overlap-phone-table-wrapper">
+                <table class="overlap-phone-table">
+                    <thead>
+                        <tr>
+                            <th>Telefon</th>
+                            <th>Medarbejder</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var allocation in PhoneAllocations)
+                        {
+                            <tr>
+                                <td>@allocation.PhoneNameOrNumber</td>
+                                <td>@allocation.EmployeeName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
 </section>
 
 @if (IsCreateShiftTaskModalOpen)
@@ -323,6 +374,70 @@
                             @onclick="CreateResponsibilityAssignmentAsync"
                             disabled="@(IsCreatingResponsibilityAssignment || IsLoadingResponsibilityCreateData || ResponsibilityTypes.Count == 0 || ShiftEmployees.Count == 0)">
                         @(IsCreatingResponsibilityAssignment ? "Opretter..." : "Opret")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (IsCreatePhoneAllocationModalOpen)
+{
+    <div class="modal fade show d-block overlap-modal-backdrop" tabindex="-1" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content overlap-modal overlap-shift-task-create-modal">
+                <div class="modal-header overlap-modal-header">
+                    <h2 class="modal-title h5 mb-0">Tildel telefon</h2>
+                    <button type="button"
+                            class="btn-close"
+                            aria-label="Close"
+                            @onclick="CloseCreatePhoneAllocationModal"
+                            disabled="@IsCreatingPhoneAllocation"></button>
+                </div>
+                <div class="modal-body overlap-modal-body">
+                    @if (!string.IsNullOrWhiteSpace(CreatePhoneAllocationErrorMessage))
+                    {
+                        <div class="alert alert-danger mb-0" role="alert">@CreatePhoneAllocationErrorMessage</div>
+                    }
+                    @if (IsLoadingPhoneAllocationCreateData)
+                    {
+                        <p class="mb-0">Indlæser telefoner og medarbejdere...</p>
+                    }
+                    else
+                    {
+                        <div class="overlap-modal-field">
+                            <label for="create-phone-allocation-phone">Telefon</label>
+                            <InputSelect id="create-phone-allocation-phone"
+                                         class="form-select"
+                                         @bind-Value="NewPhoneAllocationPhoneId"
+                                         disabled="@IsCreatingPhoneAllocation">
+                                @foreach (var phone in AvailablePhonesForAllocation)
+                                {
+                                    <option value="@phone.Id">@phone.NameOrNumber</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="overlap-modal-field">
+                            <label for="create-phone-allocation-employee">Medarbejder</label>
+                            <InputSelect id="create-phone-allocation-employee"
+                                         class="form-select"
+                                         @bind-Value="NewPhoneAllocationEmployeeId"
+                                         disabled="@IsCreatingPhoneAllocation">
+                                @foreach (var employee in ShiftEmployeesForPhoneAllocation)
+                                {
+                                    <option value="@employee.EmployeeId">@employee.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCreatePhoneAllocationModal" disabled="@IsCreatingPhoneAllocation">Annuller</button>
+                    <button type="button"
+                            class="btn btn-primary"
+                            @onclick="CreatePhoneAllocationAsync"
+                            disabled="@(IsCreatingPhoneAllocation || IsLoadingPhoneAllocationCreateData || AvailablePhonesForAllocation.Count == 0 || ShiftEmployeesForPhoneAllocation.Count == 0)">
+                        @(IsCreatingPhoneAllocation ? "Tildeler..." : "Tildel")
                     </button>
                 </div>
             </div>
@@ -672,6 +787,60 @@
         display: flex;
         gap: 1rem;
         margin-bottom: 1.4rem;
+    }
+
+    .overlap-phone-board {
+        border: 1px solid #d8e2dc;
+        border-radius: 0.9rem;
+        padding: 0.8rem;
+        background: #f8fbf9;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .overlap-phone-board-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+    }
+
+    .overlap-phone-board-header h2 {
+        margin: 0;
+        color: #365246;
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .overlap-phone-table-wrapper {
+        margin-top: 0.55rem;
+        overflow-x: auto;
+    }
+
+    .overlap-phone-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 300px;
+    }
+
+    .overlap-phone-table th,
+    .overlap-phone-table td {
+        padding: 0.5rem 0.55rem;
+        border-bottom: 1px solid #dbe6e0;
+        font-size: 0.82rem;
+        color: #284439;
+        text-align: left;
+    }
+
+    .overlap-phone-table th {
+        font-size: 0.74rem;
+        color: #365246;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        background: #eef4f0;
     }
 
     .overlap-filter {
@@ -1057,23 +1226,32 @@
     private List<ResponsibilityAssignmentItemModel> ResponsibilityAssignments { get; set; } = [];
     private List<ResponsibilityTypeItemModel> ResponsibilityTypes { get; set; } = [];
     private List<ShiftEmployeeItemModel> ShiftEmployees { get; set; } = [];
+    private List<PhoneAllocationItemModel> PhoneAllocations { get; set; } = [];
+    private List<PhoneItemModel> AvailablePhonesForAllocation { get; set; } = [];
+    private List<ShiftEmployeeItemModel> ShiftEmployeesForPhoneAllocation { get; set; } = [];
     private int? CurrentShiftId { get; set; }
     private CitizenDetailModel? SelectedCitizen { get; set; }
     private string? LoadErrorMessage { get; set; }
     private string? ShiftTasksErrorMessage { get; set; }
     private string? ResponsibilityAssignmentsErrorMessage { get; set; }
+    private string? PhoneAllocationsErrorMessage { get; set; }
     private string? CreateShiftTaskErrorMessage { get; set; }
     private string? CreateResponsibilityAssignmentErrorMessage { get; set; }
+    private string? CreatePhoneAllocationErrorMessage { get; set; }
     private string? SaveErrorMessage { get; set; }
     private string? SaveSuccessMessage { get; set; }
     private bool IsLoading { get; set; }
     private bool IsShiftTasksLoading { get; set; }
     private bool IsResponsibilitiesLoading { get; set; }
+    private bool IsPhoneAllocationsLoading { get; set; }
     private bool IsCreateShiftTaskModalOpen { get; set; }
     private bool IsCreateResponsibilityAssignmentModalOpen { get; set; }
+    private bool IsCreatePhoneAllocationModalOpen { get; set; }
     private bool IsCreatingShiftTask { get; set; }
     private bool IsCreatingResponsibilityAssignment { get; set; }
+    private bool IsCreatingPhoneAllocation { get; set; }
     private bool IsLoadingResponsibilityCreateData { get; set; }
+    private bool IsLoadingPhoneAllocationCreateData { get; set; }
     private HashSet<int> UpdatingShiftTaskIds { get; } = [];
     private Dictionary<string, string> DepartmentMessages { get; } = new(StringComparer.OrdinalIgnoreCase);
     private bool IsSaving { get; set; }
@@ -1082,12 +1260,15 @@
     private string NewShiftTaskDescription { get; set; } = string.Empty;
     private int NewResponsibilityTypeId { get; set; }
     private int NewResponsibilityEmployeeId { get; set; }
+    private int NewPhoneAllocationPhoneId { get; set; }
+    private int NewPhoneAllocationEmployeeId { get; set; }
     private DateTime SelectedDate { get; set; } = DateTime.Today;
 
     private bool CanEditTrafficLight => AuthService.CurrentUser?.Role == "Admin";
     private bool CanRegisterMedication => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
     private bool CanManageSpecialEvents => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
     private bool CanManageResponsibilities => AuthService.CurrentUser?.Role is "Admin" or "Vagtansvarlig";
+    private bool CanManagePhoneAllocations => AuthService.CurrentUser?.Role is "Admin" or "Vagtansvarlig";
 
     protected override void OnInitialized()
     {
@@ -1172,6 +1353,7 @@
 
             await LoadShiftTasksAsync(client, shiftId.Value);
             await LoadResponsibilityAssignmentsAsync(client, shiftId.Value);
+            await LoadPhoneAllocationsAsync(client, shiftId.Value);
 
             using var response = await client.GetAsync($"api/overlap/departments/{departmentId}/shifts/{shiftId.Value}/citizens");
 
@@ -1575,23 +1757,34 @@
         ResponsibilityAssignments = [];
         ResponsibilityTypes = [];
         ShiftEmployees = [];
+        PhoneAllocations = [];
+        AvailablePhonesForAllocation = [];
+        ShiftEmployeesForPhoneAllocation = [];
         CurrentShiftId = null;
         ShiftTasksErrorMessage = null;
         ResponsibilityAssignmentsErrorMessage = null;
+        PhoneAllocationsErrorMessage = null;
         CreateShiftTaskErrorMessage = null;
         CreateResponsibilityAssignmentErrorMessage = null;
+        CreatePhoneAllocationErrorMessage = null;
         IsCreateShiftTaskModalOpen = false;
         IsCreateResponsibilityAssignmentModalOpen = false;
+        IsCreatePhoneAllocationModalOpen = false;
         IsCreatingShiftTask = false;
         IsCreatingResponsibilityAssignment = false;
+        IsCreatingPhoneAllocation = false;
         IsLoadingResponsibilityCreateData = false;
+        IsLoadingPhoneAllocationCreateData = false;
         IsResponsibilitiesLoading = false;
+        IsPhoneAllocationsLoading = false;
         UpdatingShiftTaskIds.Clear();
         NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
         NewShiftTaskForAllShifts = false;
         NewShiftTaskDescription = string.Empty;
         NewResponsibilityTypeId = 0;
         NewResponsibilityEmployeeId = 0;
+        NewPhoneAllocationPhoneId = 0;
+        NewPhoneAllocationEmployeeId = 0;
         SelectedCitizen = null;
         LoadErrorMessage = null;
     }
@@ -1684,6 +1877,57 @@
         finally
         {
             IsResponsibilitiesLoading = false;
+        }
+    }
+
+    private async Task LoadPhoneAllocationsAsync(HttpClient client, int shiftId)
+    {
+        IsPhoneAllocationsLoading = true;
+        PhoneAllocationsErrorMessage = null;
+
+        try
+        {
+            using var response = await client.GetAsync($"api/shifts/{shiftId}/phone-allocations");
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                PhoneAllocations = [];
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                PhoneAllocations = [];
+                PhoneAllocationsErrorMessage = "Din rolle har ikke adgang til telefonfordeling.";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                PhoneAllocations = [];
+                PhoneAllocationsErrorMessage = "Kunne ikke hente telefonfordeling.";
+                return;
+            }
+
+            var allocations = await response.Content.ReadFromJsonAsync<List<PhoneAllocationItemModel>>() ?? [];
+            PhoneAllocations = allocations
+                .OrderBy(item => item.PhoneNameOrNumber, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.EmployeeName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (TaskCanceledException)
+        {
+            PhoneAllocations = [];
+            PhoneAllocationsErrorMessage = "Indlæsning af telefonfordeling tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            PhoneAllocations = [];
+            PhoneAllocationsErrorMessage = "Kunne ikke hente telefonfordeling fra API'et.";
+        }
+        finally
+        {
+            IsPhoneAllocationsLoading = false;
         }
     }
 
@@ -1836,6 +2080,159 @@
         finally
         {
             IsCreatingResponsibilityAssignment = false;
+        }
+    }
+
+    private async Task OpenCreatePhoneAllocationModalAsync()
+    {
+        if (!CanManagePhoneAllocations
+            || CurrentShiftId is null
+            || IsLoading
+            || IsPhoneAllocationsLoading
+            || IsCreatingPhoneAllocation)
+        {
+            return;
+        }
+
+        AvailablePhonesForAllocation = [];
+        ShiftEmployeesForPhoneAllocation = [];
+        NewPhoneAllocationPhoneId = 0;
+        NewPhoneAllocationEmployeeId = 0;
+        CreatePhoneAllocationErrorMessage = null;
+        IsLoadingPhoneAllocationCreateData = true;
+        IsCreatePhoneAllocationModalOpen = true;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+
+            using var phonesResponse = await client.GetAsync("api/phones");
+            if (!phonesResponse.IsSuccessStatusCode)
+            {
+                CreatePhoneAllocationErrorMessage = "Kunne ikke hente telefoner.";
+                return;
+            }
+
+            var phones = await phonesResponse.Content.ReadFromJsonAsync<List<PhoneItemModel>>() ?? [];
+            AvailablePhonesForAllocation = phones
+                .Where(phone => phone.IsActive)
+                .OrderBy(phone => phone.NameOrNumber, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            using var employeesResponse = await client.GetAsync($"api/shifts/{CurrentShiftId.Value}/employees");
+            if (!employeesResponse.IsSuccessStatusCode)
+            {
+                CreatePhoneAllocationErrorMessage = "Kunne ikke hente medarbejdere på vagten.";
+                return;
+            }
+
+            var staffingResponse = await employeesResponse.Content.ReadFromJsonAsync<ShiftStaffingItemModel>();
+            ShiftEmployeesForPhoneAllocation = staffingResponse?.Employees?
+                .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
+            if (AvailablePhonesForAllocation.Count == 0)
+            {
+                CreatePhoneAllocationErrorMessage = "Der findes ingen aktive telefoner at tildele.";
+                return;
+            }
+
+            if (ShiftEmployeesForPhoneAllocation.Count == 0)
+            {
+                CreatePhoneAllocationErrorMessage = "Der er ingen medarbejdere på vagten at tildele.";
+                return;
+            }
+
+            NewPhoneAllocationPhoneId = AvailablePhonesForAllocation[0].Id;
+            NewPhoneAllocationEmployeeId = ShiftEmployeesForPhoneAllocation[0].EmployeeId;
+        }
+        catch (TaskCanceledException)
+        {
+            CreatePhoneAllocationErrorMessage = "Indlæsning af data tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            CreatePhoneAllocationErrorMessage = "Kunne ikke hente data fra API'et.";
+        }
+        finally
+        {
+            IsLoadingPhoneAllocationCreateData = false;
+        }
+    }
+
+    private void CloseCreatePhoneAllocationModal()
+    {
+        if (IsCreatingPhoneAllocation)
+        {
+            return;
+        }
+
+        IsCreatePhoneAllocationModalOpen = false;
+        IsLoadingPhoneAllocationCreateData = false;
+        CreatePhoneAllocationErrorMessage = null;
+        AvailablePhonesForAllocation = [];
+        ShiftEmployeesForPhoneAllocation = [];
+        NewPhoneAllocationPhoneId = 0;
+        NewPhoneAllocationEmployeeId = 0;
+    }
+
+    private async Task CreatePhoneAllocationAsync()
+    {
+        if (!CanManagePhoneAllocations || CurrentShiftId is null)
+        {
+            CreatePhoneAllocationErrorMessage = "Du har ikke adgang til at tildele telefoner.";
+            return;
+        }
+
+        if (NewPhoneAllocationPhoneId <= 0 || NewPhoneAllocationEmployeeId <= 0)
+        {
+            CreatePhoneAllocationErrorMessage = "Vælg både telefon og medarbejder.";
+            return;
+        }
+
+        IsCreatingPhoneAllocation = true;
+        CreatePhoneAllocationErrorMessage = null;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsJsonAsync(
+                $"api/shifts/{CurrentShiftId.Value}/phone-allocations",
+                new
+                {
+                    phoneId = NewPhoneAllocationPhoneId,
+                    employeeId = NewPhoneAllocationEmployeeId
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                CreatePhoneAllocationErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke tildele telefonen."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadPhoneAllocationsAsync(client, CurrentShiftId.Value);
+            IsCreatePhoneAllocationModalOpen = false;
+            IsLoadingPhoneAllocationCreateData = false;
+            CreatePhoneAllocationErrorMessage = null;
+            AvailablePhonesForAllocation = [];
+            ShiftEmployeesForPhoneAllocation = [];
+            NewPhoneAllocationPhoneId = 0;
+            NewPhoneAllocationEmployeeId = 0;
+        }
+        catch (TaskCanceledException)
+        {
+            CreatePhoneAllocationErrorMessage = "Tildeling af telefon tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            CreatePhoneAllocationErrorMessage = "Kunne ikke tildele telefon via API'et.";
+        }
+        finally
+        {
+            IsCreatingPhoneAllocation = false;
         }
     }
 
@@ -2262,6 +2659,23 @@
     {
         public int EmployeeId { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class PhoneItemModel
+    {
+        public int Id { get; set; }
+        public string NameOrNumber { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class PhoneAllocationItemModel
+    {
+        public int Id { get; set; }
+        public int ShiftId { get; set; }
+        public int PhoneId { get; set; }
+        public string PhoneNameOrNumber { get; set; } = string.Empty;
+        public int EmployeeId { get; set; }
+        public string EmployeeName { get; set; } = string.Empty;
     }
 
     private sealed class DepartmentMessageApiModel

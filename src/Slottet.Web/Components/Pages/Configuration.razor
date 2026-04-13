@@ -114,6 +114,83 @@
             </div>
             }
         </section>
+
+        <section class="config-card">
+            <div class="config-card-header">
+                <div>
+                    <h2>Telefoner</h2>
+                    <p class="config-muted">Administrer telefoner der kan fordeles på vagter.</p>
+                </div>
+                <div class="config-actions">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetPhonesAsync" disabled="@(IsLoadingPhones || IsSavingPhones || IsCreatingPhone || DeletingPhoneIds.Count > 0)">Nulstil</button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(PhoneStatusMessage))
+            {
+                <div class="alert @(HasPhoneValidationError ? "alert-danger" : "alert-success")" role="alert">@PhoneStatusMessage</div>
+            }
+
+            <div class="config-subheading-row">
+                <h3 class="config-subheading">Tilføj telefon</h3>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="CreatePhoneAsync" disabled="@(IsCreatingPhone || IsLoadingPhones)">@(IsCreatingPhone ? "Opretter..." : "Opret")</button>
+            </div>
+
+            <div class="config-row config-row-phone-create">
+                <label for="new-phone-name">Navn/nummer</label>
+                <InputText id="new-phone-name"
+                           class="form-control"
+                           @bind-Value="NewPhoneNameOrNumber"
+                           disabled="@(IsCreatingPhone || IsLoadingPhones)" />
+                <label class="config-checkbox">
+                    <InputCheckbox @bind-Value="NewPhoneIsActive" disabled="@(IsCreatingPhone || IsLoadingPhones)" />
+                    <span>Aktiv</span>
+                </label>
+            </div>
+
+            <h3 class="config-subheading config-subheading-phones">Eksisterende telefoner</h3>
+            @if (IsLoadingPhones)
+            {
+                <p>Indlæser telefoner...</p>
+            }
+            else if (PhoneRows.Count == 0)
+            {
+                <p>Ingen telefoner oprettet endnu.</p>
+            }
+            else
+            {
+                <div class="config-grid">
+                    @foreach (var phone in PhoneRows)
+                    {
+                        <div class="config-row config-row-phone">
+                            <div class="config-row-phone-fields">
+                                <InputText class="form-control"
+                                           @bind-Value="phone.NameOrNumber"
+                                           disabled="@(IsSavingPhones || IsLoadingPhones || DeletingPhoneIds.Contains(phone.Id))" />
+                                <label class="config-checkbox">
+                                    <InputCheckbox @bind-Value="phone.IsActive" disabled="@(IsSavingPhones || IsLoadingPhones || DeletingPhoneIds.Contains(phone.Id))" />
+                                    <span>Aktiv</span>
+                                </label>
+                            </div>
+                            <div class="config-actions">
+                                <button type="button"
+                                        class="btn btn-sm btn-primary"
+                                        @onclick="() => SavePhoneAsync(phone)"
+                                        disabled="@(IsSavingPhones || IsLoadingPhones || DeletingPhoneIds.Contains(phone.Id))">
+                                    Gem
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => DeletePhoneAsync(phone)"
+                                        disabled="@(IsSavingPhones || IsLoadingPhones || DeletingPhoneIds.Contains(phone.Id))">
+                                    @(DeletingPhoneIds.Contains(phone.Id) ? "Sletter..." : "Slet")
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
     </section>
 }
 
@@ -181,6 +258,22 @@
         letter-spacing: 0.06em;
     }
 
+    .config-subheading-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .config-subheading-row .config-subheading {
+        margin: 0;
+    }
+
+    .config-subheading-phones {
+        padding-top: 0.9rem;
+    }
+
     .config-grid {
         display: grid;
         gap: 0.75rem;
@@ -238,10 +331,54 @@
         resize: vertical;
     }
 
+    .config-row-phone-create {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(220px, auto) auto;
+        align-items: center;
+    }
+
+    .config-row-phone {
+        display: flex;
+        gap: 0.8rem;
+        align-items: center;
+    }
+
+    .config-row-phone-fields {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.7rem;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .config-checkbox {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+        color: #486257;
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+
     @@media (max-width: 640px) {
         .config-row {
             flex-direction: column;
             align-items: flex-start;
+        }
+
+        .config-row-phone-create {
+            grid-template-columns: 1fr;
+        }
+
+        .config-row-phone {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .config-row-phone-fields {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -257,8 +394,17 @@
     private bool IsLoadingDisclaimers { get; set; }
     private bool IsSaving { get; set; }
     private bool IsSavingDisclaimers { get; set; }
+    private bool IsLoadingPhones { get; set; }
+    private bool IsSavingPhones { get; set; }
+    private bool IsCreatingPhone { get; set; }
     private string SlottetDisclaimerText { get; set; } = string.Empty;
     private string SkovenDisclaimerText { get; set; } = string.Empty;
+    private string? PhoneStatusMessage { get; set; }
+    private bool HasPhoneValidationError { get; set; }
+    private string NewPhoneNameOrNumber { get; set; } = string.Empty;
+    private bool NewPhoneIsActive { get; set; } = true;
+    private List<PhoneRow> PhoneRows { get; set; } = [];
+    private HashSet<int> DeletingPhoneIds { get; } = [];
     private int? SlottetDepartmentId { get; set; }
     private int? SkovenDepartmentId { get; set; }
 
@@ -272,6 +418,7 @@
 
         await LoadShiftDefinitionsAsync();
         await LoadDisclaimersAsync();
+        await LoadPhonesAsync();
     }
 
     private async Task SaveDisclaimersAsync()
@@ -675,6 +822,209 @@
         }
     }
 
+    private async Task LoadPhonesAsync()
+    {
+        try
+        {
+            IsLoadingPhones = true;
+            HasPhoneValidationError = false;
+            PhoneStatusMessage = null;
+
+            var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/phones");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                HasPhoneValidationError = true;
+                PhoneStatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke hente telefoner."
+                    : apiMessage;
+                PhoneRows = [];
+                return;
+            }
+
+            var phones = await response.Content.ReadFromJsonAsync<List<PhoneApiModel>>() ?? [];
+            PhoneRows = phones
+                .OrderBy(phone => phone.NameOrNumber, StringComparer.OrdinalIgnoreCase)
+                .Select(phone => new PhoneRow
+                {
+                    Id = phone.Id,
+                    NameOrNumber = phone.NameOrNumber,
+                    IsActive = phone.IsActive
+                })
+                .ToList();
+        }
+        catch (HttpRequestException)
+        {
+            HasPhoneValidationError = true;
+            PhoneStatusMessage = "Kunne ikke hente telefoner fra API'et.";
+            PhoneRows = [];
+        }
+        finally
+        {
+            IsLoadingPhones = false;
+        }
+    }
+
+    private async Task ResetPhonesAsync()
+    {
+        if (IsLoadingPhones || IsSavingPhones || IsCreatingPhone || DeletingPhoneIds.Count > 0)
+        {
+            return;
+        }
+
+        await LoadPhonesAsync();
+
+        if (!HasPhoneValidationError)
+        {
+            PhoneStatusMessage = "Telefoner er genindlæst.";
+        }
+    }
+
+    private async Task CreatePhoneAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewPhoneNameOrNumber))
+        {
+            HasPhoneValidationError = true;
+            PhoneStatusMessage = "Navn/nummer er påkrævet.";
+            return;
+        }
+
+        try
+        {
+            IsCreatingPhone = true;
+            HasPhoneValidationError = false;
+            PhoneStatusMessage = null;
+
+            var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsJsonAsync(
+                "api/phones",
+                new
+                {
+                    nameOrNumber = NewPhoneNameOrNumber.Trim(),
+                    isActive = NewPhoneIsActive
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                HasPhoneValidationError = true;
+                PhoneStatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke oprette telefonen."
+                    : apiMessage;
+                return;
+            }
+
+            NewPhoneNameOrNumber = string.Empty;
+            NewPhoneIsActive = true;
+            await LoadPhonesAsync();
+            PhoneStatusMessage = "Telefonen er oprettet.";
+        }
+        catch (HttpRequestException)
+        {
+            HasPhoneValidationError = true;
+            PhoneStatusMessage = "Kunne ikke oprette telefon via API'et.";
+        }
+        finally
+        {
+            IsCreatingPhone = false;
+        }
+    }
+
+    private async Task SavePhoneAsync(PhoneRow row)
+    {
+        if (row.Id <= 0)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(row.NameOrNumber))
+        {
+            HasPhoneValidationError = true;
+            PhoneStatusMessage = "Navn/nummer er påkrævet.";
+            return;
+        }
+
+        try
+        {
+            IsSavingPhones = true;
+            HasPhoneValidationError = false;
+            PhoneStatusMessage = null;
+
+            var client = AuthService.CreateApiClient();
+            using var response = await client.PutAsJsonAsync(
+                $"api/phones/{row.Id}",
+                new
+                {
+                    nameOrNumber = row.NameOrNumber.Trim(),
+                    isActive = row.IsActive
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                HasPhoneValidationError = true;
+                PhoneStatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke gemme telefonen."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadPhonesAsync();
+            PhoneStatusMessage = "Telefonen er opdateret.";
+        }
+        catch (HttpRequestException)
+        {
+            HasPhoneValidationError = true;
+            PhoneStatusMessage = "Kunne ikke gemme telefon via API'et.";
+        }
+        finally
+        {
+            IsSavingPhones = false;
+        }
+    }
+
+    private async Task DeletePhoneAsync(PhoneRow row)
+    {
+        if (row.Id <= 0 || DeletingPhoneIds.Contains(row.Id))
+        {
+            return;
+        }
+
+        DeletingPhoneIds.Add(row.Id);
+        HasPhoneValidationError = false;
+        PhoneStatusMessage = null;
+
+        try
+        {
+            var client = AuthService.CreateApiClient();
+            using var response = await client.DeleteAsync($"api/phones/{row.Id}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                HasPhoneValidationError = true;
+                PhoneStatusMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke slette telefonen."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadPhonesAsync();
+            PhoneStatusMessage = "Telefonen er slettet.";
+        }
+        catch (HttpRequestException)
+        {
+            HasPhoneValidationError = true;
+            PhoneStatusMessage = "Kunne ikke slette telefon via API'et.";
+        }
+        finally
+        {
+            DeletingPhoneIds.Remove(row.Id);
+        }
+    }
+
     private static List<ShiftConfigRow> CloneRows(IEnumerable<ShiftConfigRow> source)
     {
         return source
@@ -734,5 +1084,19 @@
     private sealed class UpdateDepartmentMessageRequestApiModel
     {
         public string Message { get; set; } = string.Empty;
+    }
+
+    private sealed class PhoneApiModel
+    {
+        public int Id { get; set; }
+        public string NameOrNumber { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    private sealed class PhoneRow
+    {
+        public int Id { get; set; }
+        public string NameOrNumber { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
     }
 }
