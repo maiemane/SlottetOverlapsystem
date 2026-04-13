@@ -134,6 +134,32 @@ Der findes tests i:
 - `tests/Slottet.Application.Tests`
 - `tests/Slottet.Domain.Tests`
 
+## Sikkerhed, GDPR og compliance
+
+Løsningen indeholder flere konkrete sikkerheds- og GDPR-tiltag:
+
+- JWT-baseret autentificering og rollebaseret autorisation
+- adgangslogning af API-kald via access logs
+- auditlogning af ændringer i data for sporbarhed
+- dataminimering i logs, så følsomme felter og query strings ikke gemmes i klartekst
+- konfigurerbar retention på audit- og access logs
+- GDPR-flow for borgere med eksport af persondata og anonymisering
+- pseudonymisering af anonymiserede borgere, så de fortsat kan skelnes i systemet uden direkte identifikation
+
+Det betyder, at systemet både understøtter sikker drift, audit og centrale GDPR-principper som dataminimering, begrænset opbevaringsperiode og kontrolleret behandling af personoplysninger.
+
+### Kryptering og beskyttelse af data
+
+Det er vigtigt at skelne mellem forskellige typer beskyttelse:
+
+- data i transit er beskyttet, fordi databaseforbindelsen er sat op med `Encrypt=True`
+- passwords gemmes ikke i klartekst, men som hash
+- øvrige persondata som borgernavn, lejlighedsnummer, medicinbeskrivelser og hændelser er ikke krypteret felt-for-felt i applikationskoden
+
+Det vil sige, at løsningen beskytter forbindelsen mellem applikation og database, men ikke selv krypterer alle persondatafelter i databasen. Hvis databasen kører med kryptering at rest, vil det være en database-/platformfunktion, ikke noget der følger direkte af denne kodebase.
+
+Til et eksamensprojekt vurderes den nuværende løsning som et realistisk og fornuftigt niveau, fordi der er fokus på adgangskontrol, hashing, logbeskyttelse, anonymisering og retention. Hvis systemet skulle videre mod rigtig drift, ville næste relevante sikkerhedsskridt blandt andet være mere finmasket adgangskontrol, stærkere sessionhåndtering og eventuelt kryptering at rest eller feltkryptering af særligt følsomme data.
+
 ## Teknologi- og arkitekturkrav
 
 Dette afsnit beskriver, hvordan løsningen opfylder kravene til teknologi, arkitektur, cloud readiness og distribueret drift.
