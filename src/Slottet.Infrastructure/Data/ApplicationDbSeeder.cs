@@ -60,6 +60,30 @@ public static class ApplicationDbSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        var requiredResponsibilityTypeNames = new[]
+        {
+            "Medicinansvarlig",
+            "Omsorgsperson",
+            "Hygiejne"
+        };
+
+        var existingResponsibilityTypeNames = await dbContext.ResponsibilityTypes
+            .AsNoTracking()
+            .Select(responsibilityType => responsibilityType.Name)
+            .ToListAsync(cancellationToken);
+
+        var missingResponsibilityTypes = requiredResponsibilityTypeNames
+            .Where(requiredName => !existingResponsibilityTypeNames.Any(existingName =>
+                string.Equals(existingName, requiredName, StringComparison.OrdinalIgnoreCase)))
+            .Select(name => new ResponsibilityType { Name = name })
+            .ToList();
+
+        if (missingResponsibilityTypes.Count > 0)
+        {
+            await dbContext.ResponsibilityTypes.AddRangeAsync(missingResponsibilityTypes, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         if (await dbContext.Employees.AnyAsync(cancellationToken))
         {
             return;
