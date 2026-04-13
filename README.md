@@ -495,6 +495,10 @@ Følgende formuleringer kan bruges direkte eller næsten direkte i eksamensforsv
 
 “For at undgå binding til lokalt filsystem i et multi-instance setup deler frontend-instanserne Data Protection keys via databasen. Det er vigtigt for beskyttede payloads og antiforgery i Blazor Server.”
 
+### Om valg af Blazor Server frem for WebAssembly
+
+“Vi valgte Blazor Server, fordi det passede godt til vores .NET-stack og gjorde det muligt at komme hurtigt langt med én samlet C#-baseret frontend. Det var en praktisk fordel i et eksamensprojekt. Vi er samtidig bevidste om, at Blazor Server giver ekstra hensyn ved load balancing og horisontal skalering, fordi der findes server-side circuits. Hvis målet primært havde været maksimal arkitektonisk renhed i et distribueret frontend/backend setup, ville Blazor WebAssembly have været et stærkere valg. Vores valg af Blazor Server er derfor et bevidst tradeoff mellem udviklingshastighed og driftsmæssig kompleksitet.”
+
 ## Resume
 
 Løsningen opfylder langt størstedelen af kravene under teknologi og arkitektur. Det vigtigste, der kræver præcis mundtlig forklaring, er ikke om løsningen er distribueret, men hvordan frontendens Blazor Server-model påvirker load balancing og horisontal skalering. Det er derfor vigtigt at forklare, at API'en er lettest at skalere, mens frontend kræver sticky sessions eller tilsvarende ved flere instanser.
