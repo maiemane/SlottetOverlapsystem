@@ -26,51 +26,96 @@
                 <p class="overlap-subtitle">Borgeroversigt for den valgte afdeling og vagt.</p>
             </div>
         </div>
-        <aside class="overlap-shift-tasks" aria-live="polite">
-            <div class="overlap-shift-tasks-header">
-                <p class="overlap-shift-tasks-title">Vagtopgaver</p>
-                <button type="button"
-                        class="overlap-shift-tasks-add"
-                        title="Opret vagtopgave"
-                        aria-label="Opret vagtopgave"
-                        @onclick="OpenCreateShiftTaskModal"
-                        disabled="@(IsShiftTasksLoading || IsCreatingShiftTask || !DepartmentIds.ContainsKey(AuthService.SelectedDepartment))">
-                    +
-                </button>
-            </div>
-            @if (IsLoading || IsShiftTasksLoading)
-            {
-                <p class="overlap-shift-tasks-status">Indlæser opgaver...</p>
-            }
-            else if (!string.IsNullOrWhiteSpace(ShiftTasksErrorMessage))
-            {
-                <p class="overlap-shift-tasks-status overlap-shift-tasks-status-error">@ShiftTasksErrorMessage</p>
-            }
-            else if (ShiftTasks.Count == 0)
-            {
-                <p class="overlap-shift-tasks-status">Ingen opgaver på vagten.</p>
-            }
-            else
-            {
-                <ul class="overlap-shift-tasks-list">
-                    @foreach (var shiftTask in ShiftTasks)
+        <div class="overlap-side-panels">
+            <aside class="overlap-responsibility-tasks" aria-live="polite">
+                <div class="overlap-shift-tasks-header">
+                    <p class="overlap-shift-tasks-title">Ansvarsopgaver</p>
+                    @if (CanManageResponsibilities)
                     {
-                        <li class="overlap-shift-task-item @(shiftTask.Status == 2 ? "done" : string.Empty)">
-                            <span class="overlap-shift-task-description">@shiftTask.Description</span>
-                            <div class="overlap-shift-task-actions">
-                                <span class="overlap-shift-task-status">@GetShiftTaskStatusLabel(shiftTask.Status)</span>
-                                <button type="button"
-                                        class="overlap-shift-task-toggle"
-                                        @onclick="() => ToggleShiftTaskStatusAsync(shiftTask)"
-                                        disabled="@(!CanToggleShiftTask(shiftTask.Id))">
-                                    @(shiftTask.Status == 2 ? "Genåbn" : "Færdig")
-                                </button>
-                            </div>
-                        </li>
+                        <button type="button"
+                                class="overlap-shift-tasks-add"
+                                title="Opret ansvarsopgave"
+                                aria-label="Opret ansvarsopgave"
+                                @onclick="OpenCreateResponsibilityAssignmentModalAsync"
+                                disabled="@(IsLoading || IsResponsibilitiesLoading || IsCreatingResponsibilityAssignment || CurrentShiftId is null)">
+                            +
+                        </button>
                     }
-                </ul>
-            }
-        </aside>
+                </div>
+                @if (IsLoading || IsResponsibilitiesLoading)
+                {
+                    <p class="overlap-shift-tasks-status">Indlæser opgaver...</p>
+                }
+                else if (!string.IsNullOrWhiteSpace(ResponsibilityAssignmentsErrorMessage))
+                {
+                    <p class="overlap-shift-tasks-status overlap-shift-tasks-status-error">@ResponsibilityAssignmentsErrorMessage</p>
+                }
+                else if (ResponsibilityAssignments.Count == 0)
+                {
+                    <p class="overlap-shift-tasks-status">Ingen ansvarsopgaver på vagten.</p>
+                }
+                else
+                {
+                    <ul class="overlap-shift-tasks-list">
+                        @foreach (var assignment in ResponsibilityAssignments)
+                        {
+                            <li class="overlap-shift-task-item">
+                                <span class="overlap-shift-task-description">@assignment.ResponsibilityTypeName</span>
+                                <div class="overlap-shift-task-actions">
+                                    <span class="overlap-shift-task-status">@assignment.EmployeeName</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </aside>
+
+            <aside class="overlap-shift-tasks" aria-live="polite">
+                <div class="overlap-shift-tasks-header">
+                    <p class="overlap-shift-tasks-title">Vagtopgaver</p>
+                    <button type="button"
+                            class="overlap-shift-tasks-add"
+                            title="Opret vagtopgave"
+                            aria-label="Opret vagtopgave"
+                            @onclick="OpenCreateShiftTaskModal"
+                            disabled="@(IsShiftTasksLoading || IsCreatingShiftTask || !DepartmentIds.ContainsKey(AuthService.SelectedDepartment))">
+                        +
+                    </button>
+                </div>
+                @if (IsLoading || IsShiftTasksLoading)
+                {
+                    <p class="overlap-shift-tasks-status">Indlæser opgaver...</p>
+                }
+                else if (!string.IsNullOrWhiteSpace(ShiftTasksErrorMessage))
+                {
+                    <p class="overlap-shift-tasks-status overlap-shift-tasks-status-error">@ShiftTasksErrorMessage</p>
+                }
+                else if (ShiftTasks.Count == 0)
+                {
+                    <p class="overlap-shift-tasks-status">Ingen opgaver på vagten.</p>
+                }
+                else
+                {
+                    <ul class="overlap-shift-tasks-list">
+                        @foreach (var shiftTask in ShiftTasks)
+                        {
+                            <li class="overlap-shift-task-item @(shiftTask.Status == 2 ? "done" : string.Empty)">
+                                <span class="overlap-shift-task-description">@shiftTask.Description</span>
+                                <div class="overlap-shift-task-actions">
+                                    <span class="overlap-shift-task-status">@GetShiftTaskStatusLabel(shiftTask.Status)</span>
+                                    <button type="button"
+                                            class="overlap-shift-task-toggle"
+                                            @onclick="() => ToggleShiftTaskStatusAsync(shiftTask)"
+                                            disabled="@(!CanToggleShiftTask(shiftTask.Id))">
+                                        @(shiftTask.Status == 2 ? "Genåbn" : "Færdig")
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </aside>
+        </div>
     </header>
 
     <div class="overlap-toolbar">
@@ -214,6 +259,70 @@
                     <button type="button" class="btn btn-outline-secondary" @onclick="CloseCreateShiftTaskModal" disabled="@IsCreatingShiftTask">Annuller</button>
                     <button type="button" class="btn btn-primary" @onclick="CreateShiftTaskAsync" disabled="@IsCreatingShiftTask">
                         @(IsCreatingShiftTask ? "Opretter..." : "Opret")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (IsCreateResponsibilityAssignmentModalOpen)
+{
+    <div class="modal fade show d-block overlap-modal-backdrop" tabindex="-1" aria-modal="true" role="dialog">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content overlap-modal overlap-shift-task-create-modal">
+                <div class="modal-header overlap-modal-header">
+                    <h2 class="modal-title h5 mb-0">Opret ansvarsopgave</h2>
+                    <button type="button"
+                            class="btn-close"
+                            aria-label="Close"
+                            @onclick="CloseCreateResponsibilityAssignmentModal"
+                            disabled="@IsCreatingResponsibilityAssignment"></button>
+                </div>
+                <div class="modal-body overlap-modal-body">
+                    @if (!string.IsNullOrWhiteSpace(CreateResponsibilityAssignmentErrorMessage))
+                    {
+                        <div class="alert alert-danger mb-0" role="alert">@CreateResponsibilityAssignmentErrorMessage</div>
+                    }
+                    @if (IsLoadingResponsibilityCreateData)
+                    {
+                        <p class="mb-0">Indlæser ansvarsområder og medarbejdere...</p>
+                    }
+                    else
+                    {
+                        <div class="overlap-modal-field">
+                            <label for="create-responsibility-type">Ansvarsområde</label>
+                            <InputSelect id="create-responsibility-type"
+                                         class="form-select"
+                                         @bind-Value="NewResponsibilityTypeId"
+                                         disabled="@IsCreatingResponsibilityAssignment">
+                                @foreach (var type in ResponsibilityTypes)
+                                {
+                                    <option value="@type.Id">@type.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="overlap-modal-field">
+                            <label for="create-responsibility-employee">Medarbejder</label>
+                            <InputSelect id="create-responsibility-employee"
+                                         class="form-select"
+                                         @bind-Value="NewResponsibilityEmployeeId"
+                                         disabled="@IsCreatingResponsibilityAssignment">
+                                @foreach (var employee in ShiftEmployees)
+                                {
+                                    <option value="@employee.EmployeeId">@employee.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseCreateResponsibilityAssignmentModal" disabled="@IsCreatingResponsibilityAssignment">Annuller</button>
+                    <button type="button"
+                            class="btn btn-primary"
+                            @onclick="CreateResponsibilityAssignmentAsync"
+                            disabled="@(IsCreatingResponsibilityAssignment || IsLoadingResponsibilityCreateData || ResponsibilityTypes.Count == 0 || ShiftEmployees.Count == 0)">
+                        @(IsCreatingResponsibilityAssignment ? "Opretter..." : "Opret")
                     </button>
                 </div>
             </div>
@@ -385,7 +494,7 @@
 
     .overlap-header {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 1rem;
         align-items: start;
         margin-bottom: 1.6rem;
@@ -432,6 +541,14 @@
         color: #597166;
     }
 
+    .overlap-side-panels {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(250px, 320px));
+        gap: 1rem;
+        justify-content: end;
+    }
+
+    .overlap-responsibility-tasks,
     .overlap-shift-tasks {
         border: 1px solid #d8e2dc;
         border-radius: 0.9rem;
@@ -895,6 +1012,10 @@
             grid-template-columns: 1fr;
         }
 
+        .overlap-side-panels {
+            grid-template-columns: 1fr;
+        }
+
         .overlap-grid {
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
@@ -933,28 +1054,40 @@
     private CitizenOverviewResponse? Overview { get; set; }
     private List<CitizenCardModel> CitizenCards { get; set; } = [];
     private List<ShiftTaskItemModel> ShiftTasks { get; set; } = [];
+    private List<ResponsibilityAssignmentItemModel> ResponsibilityAssignments { get; set; } = [];
+    private List<ResponsibilityTypeItemModel> ResponsibilityTypes { get; set; } = [];
+    private List<ShiftEmployeeItemModel> ShiftEmployees { get; set; } = [];
     private int? CurrentShiftId { get; set; }
     private CitizenDetailModel? SelectedCitizen { get; set; }
     private string? LoadErrorMessage { get; set; }
     private string? ShiftTasksErrorMessage { get; set; }
+    private string? ResponsibilityAssignmentsErrorMessage { get; set; }
     private string? CreateShiftTaskErrorMessage { get; set; }
+    private string? CreateResponsibilityAssignmentErrorMessage { get; set; }
     private string? SaveErrorMessage { get; set; }
     private string? SaveSuccessMessage { get; set; }
     private bool IsLoading { get; set; }
     private bool IsShiftTasksLoading { get; set; }
+    private bool IsResponsibilitiesLoading { get; set; }
     private bool IsCreateShiftTaskModalOpen { get; set; }
+    private bool IsCreateResponsibilityAssignmentModalOpen { get; set; }
     private bool IsCreatingShiftTask { get; set; }
+    private bool IsCreatingResponsibilityAssignment { get; set; }
+    private bool IsLoadingResponsibilityCreateData { get; set; }
     private HashSet<int> UpdatingShiftTaskIds { get; } = [];
     private Dictionary<string, string> DepartmentMessages { get; } = new(StringComparer.OrdinalIgnoreCase);
     private bool IsSaving { get; set; }
     private int NewShiftTaskShiftType { get; set; } = 1;
     private bool NewShiftTaskForAllShifts { get; set; }
     private string NewShiftTaskDescription { get; set; } = string.Empty;
+    private int NewResponsibilityTypeId { get; set; }
+    private int NewResponsibilityEmployeeId { get; set; }
     private DateTime SelectedDate { get; set; } = DateTime.Today;
 
     private bool CanEditTrafficLight => AuthService.CurrentUser?.Role == "Admin";
     private bool CanRegisterMedication => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
     private bool CanManageSpecialEvents => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
+    private bool CanManageResponsibilities => AuthService.CurrentUser?.Role is "Admin" or "Vagtansvarlig";
 
     protected override void OnInitialized()
     {
@@ -1038,6 +1171,7 @@
             }
 
             await LoadShiftTasksAsync(client, shiftId.Value);
+            await LoadResponsibilityAssignmentsAsync(client, shiftId.Value);
 
             using var response = await client.GetAsync($"api/overlap/departments/{departmentId}/shifts/{shiftId.Value}/citizens");
 
@@ -1438,15 +1572,26 @@
         Overview = null;
         CitizenCards = [];
         ShiftTasks = [];
+        ResponsibilityAssignments = [];
+        ResponsibilityTypes = [];
+        ShiftEmployees = [];
         CurrentShiftId = null;
         ShiftTasksErrorMessage = null;
+        ResponsibilityAssignmentsErrorMessage = null;
         CreateShiftTaskErrorMessage = null;
+        CreateResponsibilityAssignmentErrorMessage = null;
         IsCreateShiftTaskModalOpen = false;
+        IsCreateResponsibilityAssignmentModalOpen = false;
         IsCreatingShiftTask = false;
+        IsCreatingResponsibilityAssignment = false;
+        IsLoadingResponsibilityCreateData = false;
+        IsResponsibilitiesLoading = false;
         UpdatingShiftTaskIds.Clear();
         NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
         NewShiftTaskForAllShifts = false;
         NewShiftTaskDescription = string.Empty;
+        NewResponsibilityTypeId = 0;
+        NewResponsibilityEmployeeId = 0;
         SelectedCitizen = null;
         LoadErrorMessage = null;
     }
@@ -1488,6 +1633,209 @@
         finally
         {
             IsShiftTasksLoading = false;
+        }
+    }
+
+    private async Task LoadResponsibilityAssignmentsAsync(HttpClient client, int shiftId)
+    {
+        IsResponsibilitiesLoading = true;
+        ResponsibilityAssignmentsErrorMessage = null;
+
+        try
+        {
+            using var response = await client.GetAsync($"api/shifts/{shiftId}/responsibility-assignments");
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                ResponsibilityAssignments = [];
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                ResponsibilityAssignments = [];
+                ResponsibilityAssignmentsErrorMessage = "Din rolle har ikke adgang til ansvarsopgaver.";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ResponsibilityAssignments = [];
+                ResponsibilityAssignmentsErrorMessage = "Kunne ikke hente ansvarsopgaver.";
+                return;
+            }
+
+            var assignments = await response.Content.ReadFromJsonAsync<List<ResponsibilityAssignmentItemModel>>() ?? [];
+            ResponsibilityAssignments = assignments
+                .OrderBy(item => item.ResponsibilityTypeName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.EmployeeName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (TaskCanceledException)
+        {
+            ResponsibilityAssignments = [];
+            ResponsibilityAssignmentsErrorMessage = "Indlæsning af ansvarsopgaver tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            ResponsibilityAssignments = [];
+            ResponsibilityAssignmentsErrorMessage = "Kunne ikke hente ansvarsopgaver fra API'et.";
+        }
+        finally
+        {
+            IsResponsibilitiesLoading = false;
+        }
+    }
+
+    private async Task OpenCreateResponsibilityAssignmentModalAsync()
+    {
+        if (!CanManageResponsibilities
+            || CurrentShiftId is null
+            || IsLoading
+            || IsResponsibilitiesLoading
+            || IsCreatingResponsibilityAssignment)
+        {
+            return;
+        }
+
+        ResponsibilityTypes = [];
+        ShiftEmployees = [];
+        NewResponsibilityTypeId = 0;
+        NewResponsibilityEmployeeId = 0;
+        CreateResponsibilityAssignmentErrorMessage = null;
+        IsLoadingResponsibilityCreateData = true;
+        IsCreateResponsibilityAssignmentModalOpen = true;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+
+            using var typesResponse = await client.GetAsync("api/responsibility-types");
+            if (!typesResponse.IsSuccessStatusCode)
+            {
+                CreateResponsibilityAssignmentErrorMessage = "Kunne ikke hente ansvarsområder.";
+                return;
+            }
+
+            var responsibilityTypes = await typesResponse.Content.ReadFromJsonAsync<List<ResponsibilityTypeItemModel>>() ?? [];
+            ResponsibilityTypes = responsibilityTypes
+                .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            using var employeesResponse = await client.GetAsync($"api/shifts/{CurrentShiftId.Value}/employees");
+            if (!employeesResponse.IsSuccessStatusCode)
+            {
+                CreateResponsibilityAssignmentErrorMessage = "Kunne ikke hente medarbejdere på vagten.";
+                return;
+            }
+
+            var staffingResponse = await employeesResponse.Content.ReadFromJsonAsync<ShiftStaffingItemModel>();
+            ShiftEmployees = staffingResponse?.Employees?
+                .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
+            if (ResponsibilityTypes.Count == 0)
+            {
+                CreateResponsibilityAssignmentErrorMessage = "Der findes ingen ansvarsområder at tildele.";
+                return;
+            }
+
+            if (ShiftEmployees.Count == 0)
+            {
+                CreateResponsibilityAssignmentErrorMessage = "Der er ingen medarbejdere på vagten at tildele.";
+                return;
+            }
+
+            NewResponsibilityTypeId = ResponsibilityTypes[0].Id;
+            NewResponsibilityEmployeeId = ShiftEmployees[0].EmployeeId;
+        }
+        catch (TaskCanceledException)
+        {
+            CreateResponsibilityAssignmentErrorMessage = "Indlæsning af data tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            CreateResponsibilityAssignmentErrorMessage = "Kunne ikke hente data fra API'et.";
+        }
+        finally
+        {
+            IsLoadingResponsibilityCreateData = false;
+        }
+    }
+
+    private void CloseCreateResponsibilityAssignmentModal()
+    {
+        if (IsCreatingResponsibilityAssignment)
+        {
+            return;
+        }
+
+        IsCreateResponsibilityAssignmentModalOpen = false;
+        IsLoadingResponsibilityCreateData = false;
+        CreateResponsibilityAssignmentErrorMessage = null;
+        ResponsibilityTypes = [];
+        ShiftEmployees = [];
+        NewResponsibilityTypeId = 0;
+        NewResponsibilityEmployeeId = 0;
+    }
+
+    private async Task CreateResponsibilityAssignmentAsync()
+    {
+        if (!CanManageResponsibilities || CurrentShiftId is null)
+        {
+            CreateResponsibilityAssignmentErrorMessage = "Du har ikke adgang til at oprette ansvarsopgaver.";
+            return;
+        }
+
+        if (NewResponsibilityTypeId <= 0 || NewResponsibilityEmployeeId <= 0)
+        {
+            CreateResponsibilityAssignmentErrorMessage = "Vælg både ansvarsområde og medarbejder.";
+            return;
+        }
+
+        IsCreatingResponsibilityAssignment = true;
+        CreateResponsibilityAssignmentErrorMessage = null;
+
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.PostAsJsonAsync(
+                $"api/shifts/{CurrentShiftId.Value}/responsibility-assignments",
+                new
+                {
+                    responsibilityTypeId = NewResponsibilityTypeId,
+                    employeeId = NewResponsibilityEmployeeId
+                });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiMessage = await response.Content.ReadAsStringAsync();
+                CreateResponsibilityAssignmentErrorMessage = string.IsNullOrWhiteSpace(apiMessage)
+                    ? "Kunne ikke oprette ansvarsopgaven."
+                    : apiMessage;
+                return;
+            }
+
+            await LoadResponsibilityAssignmentsAsync(client, CurrentShiftId.Value);
+            IsCreateResponsibilityAssignmentModalOpen = false;
+            IsLoadingResponsibilityCreateData = false;
+            CreateResponsibilityAssignmentErrorMessage = null;
+            ResponsibilityTypes = [];
+            ShiftEmployees = [];
+            NewResponsibilityTypeId = 0;
+            NewResponsibilityEmployeeId = 0;
+        }
+        catch (TaskCanceledException)
+        {
+            CreateResponsibilityAssignmentErrorMessage = "Oprettelse af ansvarsopgave tog for lang tid.";
+        }
+        catch (HttpRequestException)
+        {
+            CreateResponsibilityAssignmentErrorMessage = "Kunne ikke oprette ansvarsopgave via API'et.";
+        }
+        finally
+        {
+            IsCreatingResponsibilityAssignment = false;
         }
     }
 
@@ -1886,6 +2234,34 @@
         public int ShiftId { get; set; }
         public string Description { get; set; } = string.Empty;
         public int Status { get; set; }
+    }
+
+    private sealed class ResponsibilityAssignmentItemModel
+    {
+        public int Id { get; set; }
+        public int ShiftId { get; set; }
+        public int ResponsibilityTypeId { get; set; }
+        public string ResponsibilityTypeName { get; set; } = string.Empty;
+        public int EmployeeId { get; set; }
+        public string EmployeeName { get; set; } = string.Empty;
+    }
+
+    private sealed class ResponsibilityTypeItemModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ShiftStaffingItemModel
+    {
+        public int ShiftId { get; set; }
+        public List<ShiftEmployeeItemModel> Employees { get; set; } = [];
+    }
+
+    private sealed class ShiftEmployeeItemModel
+    {
+        public int EmployeeId { get; set; }
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class DepartmentMessageApiModel
