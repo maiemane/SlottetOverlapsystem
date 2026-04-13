@@ -70,9 +70,13 @@ public static class ApplicationDbSeeder
 
         var requiredResponsibilityTypeNames = new[]
         {
-            "Medicinansvarlig",
+            "Medicintovholder",
             "Omsorgsperson",
-            "Hygiejne"
+            "Aftensmad",
+            "Hygiejne/afsprit",
+            "Kaffe til næste hold",
+            "Tøm skraldespand",
+            "Søndag: Madplan"
         };
 
         var existingResponsibilityTypeNames = await dbContext.ResponsibilityTypes

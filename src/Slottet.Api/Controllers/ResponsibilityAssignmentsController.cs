@@ -6,7 +6,7 @@ using Slottet.Application.Interfaces;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin,Vagtansvarlig")]
+[Authorize]
 [Route("api/shifts/{shiftId:int}/responsibility-assignments")]
 public sealed class ResponsibilityAssignmentsController : ControllerBase
 {
@@ -18,6 +18,7 @@ public sealed class ResponsibilityAssignmentsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin,Vagtansvarlig,Medarbejder")]
     public async Task<ActionResult<IReadOnlyList<ResponsibilityAssignmentDto>>> Get(int shiftId, CancellationToken cancellationToken)
     {
         var responsibilityAssignments = await _responsibilityAssignmentService.GetByShiftAsync(shiftId, cancellationToken);
@@ -31,6 +32,7 @@ public sealed class ResponsibilityAssignmentsController : ControllerBase
     }
 
     [HttpGet("{responsibilityAssignmentId:int}")]
+    [Authorize(Roles = "Admin,Vagtansvarlig,Medarbejder")]
     public async Task<ActionResult<ResponsibilityAssignmentDto>> GetById(int shiftId, int responsibilityAssignmentId, CancellationToken cancellationToken)
     {
         var responsibilityAssignment = await _responsibilityAssignmentService.GetByIdAsync(shiftId, responsibilityAssignmentId, cancellationToken);
@@ -44,6 +46,7 @@ public sealed class ResponsibilityAssignmentsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Vagtansvarlig")]
     public async Task<ActionResult<ResponsibilityAssignmentDto>> Create(int shiftId, [FromBody] CreateResponsibilityAssignmentRequest request, CancellationToken cancellationToken)
     {
         var result = await _responsibilityAssignmentService.CreateAsync(shiftId, request, cancellationToken);
@@ -66,6 +69,7 @@ public sealed class ResponsibilityAssignmentsController : ControllerBase
     }
 
     [HttpPut("{responsibilityAssignmentId:int}")]
+    [Authorize(Roles = "Admin,Vagtansvarlig")]
     public async Task<ActionResult<ResponsibilityAssignmentDto>> Update(int shiftId, int responsibilityAssignmentId, [FromBody] UpdateResponsibilityAssignmentRequest request, CancellationToken cancellationToken)
     {
         var result = await _responsibilityAssignmentService.UpdateAsync(shiftId, responsibilityAssignmentId, request, cancellationToken);
@@ -89,6 +93,7 @@ public sealed class ResponsibilityAssignmentsController : ControllerBase
     }
 
     [HttpDelete("{responsibilityAssignmentId:int}")]
+    [Authorize(Roles = "Admin,Vagtansvarlig")]
     public async Task<IActionResult> Delete(int shiftId, int responsibilityAssignmentId, CancellationToken cancellationToken)
     {
         var result = await _responsibilityAssignmentService.DeleteAsync(shiftId, responsibilityAssignmentId, cancellationToken);
