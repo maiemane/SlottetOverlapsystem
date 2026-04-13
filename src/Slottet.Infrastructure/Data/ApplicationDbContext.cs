@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using System.Text.Json;
@@ -6,7 +7,7 @@ using Slottet.Domain.Entities;
 
 namespace Slottet.Infrastructure.Data;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : DbContext, IDataProtectionKeyContext
 {
     private static readonly HashSet<string> SensitivePropertyNames =
     [
@@ -39,6 +40,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<SpecialEvent> SpecialEvents => Set<SpecialEvent>();
     public DbSet<ShiftEmployee> ShiftEmployees => Set<ShiftEmployee>();
     public DbSet<ShiftDefinition> ShiftDefinitions => Set<ShiftDefinition>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -85,6 +87,14 @@ public class ApplicationDbContext : DbContext
             entity.Property(x => x.RequestPath).IsRequired().HasMaxLength(500);
             entity.Property(x => x.QueryString).HasMaxLength(1000);
             entity.Property(x => x.CorrelationId).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<DataProtectionKey>(entity =>
+        {
+            entity.ToTable("DataProtectionKey");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.FriendlyName).HasMaxLength(512);
+            entity.Property(x => x.Xml).IsRequired();
         });
 
         modelBuilder.Entity<Department>(entity =>

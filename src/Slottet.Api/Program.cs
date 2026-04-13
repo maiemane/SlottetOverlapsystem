@@ -1,6 +1,8 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -31,16 +33,28 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
                  ?? throw new InvalidOperationException("Jwt configuration is missing.");
 
+var connectionString = builder.Configuration.GetConnectionString("SlottetDb")
+                      ?? throw new InvalidOperationException("Connection string 'SlottetDb' was not found.");
+
+var allowedCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>();
+var swaggerEnabled = builder.Configuration.GetValue("Swagger:Enabled", false);
+var reverseProxyEnabled = builder.Configuration.GetValue("ReverseProxy:Enabled", false);
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("SlottetDb")));
+    options.UseSqlServer(connectionString));
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SlottetWeb", policy =>
     {
-        policy.WithOrigins("https://localhost:7169", "http://localhost:5150")
+        var origins = allowedCorsOrigins is { Length: > 0 }
+            ? allowedCorsOrigins
+            : ["https://localhost:7169", "http://localhost:5150"];
+
+        policy.WithOrigins(origins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -66,6 +80,7 @@ builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build());
+builder.Services.AddHealthChecks();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -131,10 +146,22 @@ var app = builder.Build();
 
 await app.Services.SeedAuthenticationDataAsync();
 
-if (app.Environment.IsDevelopment())
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+if (reverseProxyEnabled)
+{
+    var forwardedHeadersOptions = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    };
+
+    forwardedHeadersOptions.KnownIPNetworks.Clear();
+    forwardedHeadersOptions.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwardedHeadersOptions);
 }
 
 app.UseHttpsRedirection();
@@ -143,6 +170,7 @@ app.UseAuthentication();
 app.UseMiddleware<AccessLogMiddleware>();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health", new HealthCheckOptions()).AllowAnonymous();
 app.MapControllers();
 
 app.Run();

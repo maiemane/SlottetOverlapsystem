@@ -8,12 +8,20 @@ namespace Slottet.Infrastructure.Data;
 
 public static class ApplicationDbSeeder
 {
-    public static async Task SeedAuthenticationDataAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
+    public static async Task EnsureDatabaseMigratedAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        await dbContext.Database.MigrateAsync(cancellationToken);
+        await MigrateWithRetryAsync(dbContext, cancellationToken);
+    }
+
+    public static async Task SeedAuthenticationDataAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
+    {
+        await services.EnsureDatabaseMigratedAsync(cancellationToken);
+
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var requiredDepartmentNames = new[]
         {
@@ -98,6 +106,26 @@ public static class ApplicationDbSeeder
 
         await dbContext.Employees.AddRangeAsync(employees, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task MigrateWithRetryAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 10;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await dbContext.Database.MigrateAsync(cancellationToken);
+                return;
+            }
+            catch (Exception) when (attempt < maxAttempts)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+        }
+
+        await dbContext.Database.MigrateAsync(cancellationToken);
     }
 
     private static Employee CreateEmployee(
