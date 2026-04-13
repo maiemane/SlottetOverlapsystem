@@ -43,8 +43,21 @@ public sealed class CitizenCreationRepository : ICitizenCreationRepository
     public async Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CitizenFixedMedications
-            .AsNoTracking()
             .Where(fixedMedication => fixedMedication.CitizenId == citizenId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MedicinRegistration>> GetMedicationRegistrationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.MedicinRegistrations
+            .Where(registration => registration.CitizenId == citizenId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SpecialEvent>> GetSpecialEventsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.SpecialEvents
+            .Where(specialEvent => specialEvent.CitizenId == citizenId)
             .ToListAsync(cancellationToken);
     }
     public Task<Department?> GetDepartmentByIdAsync(int departmentId, CancellationToken cancellationToken = default)

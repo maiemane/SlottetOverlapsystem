@@ -31,6 +31,21 @@ public sealed class CitizensController : ControllerBase
         return Ok(citizens);
     }
 
+    [HttpGet("{citizenId:int}/personal-data")]
+    public async Task<ActionResult<CitizenPersonalDataExportDto>> ExportPersonalData(
+        int citizenId,
+        CancellationToken cancellationToken)
+    {
+        var export = await _createCitizenService.ExportPersonalDataAsync(citizenId, cancellationToken);
+
+        if (export is null)
+        {
+            return NotFound("Borgeren blev ikke fundet.");
+        }
+
+        return Ok(export);
+    }
+
     [HttpPost]
     public async Task<ActionResult<CreateCitizenResponse>> Create(
         [FromBody] CreateCitizenRequest request,
@@ -87,6 +102,23 @@ public sealed class CitizensController : ControllerBase
             {
                 "NotFound" => NotFound("Borgeren blev ikke fundet."),
                 "HasRelations" => Conflict("Borgeren kan ikke slettes, fordi den bruges i eksisterende registreringer."),
+                _ => StatusCode(StatusCodes.Status500InternalServerError)
+            };
+        }
+
+        return NoContent();
+    }
+
+    [HttpPost("{citizenId:int}/anonymize")]
+    public async Task<IActionResult> Anonymize(int citizenId, CancellationToken cancellationToken)
+    {
+        var result = await _createCitizenService.AnonymizeAsync(citizenId, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error switch
+            {
+                "NotFound" => NotFound("Borgeren blev ikke fundet."),
                 _ => StatusCode(StatusCodes.Status500InternalServerError)
             };
         }

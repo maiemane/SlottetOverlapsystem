@@ -7,6 +7,7 @@ namespace Slottet.Infrastructure.Logging;
 
 public sealed class AccessLogMiddleware
 {
+    private const string RedactedValue = "[REDACTED]";
     private readonly RequestDelegate _next;
 
     public AccessLogMiddleware(RequestDelegate next)
@@ -29,7 +30,9 @@ public sealed class AccessLogMiddleware
             EmployeeId = currentUserContext.EmployeeId,
             HttpMethod = context.Request.Method,
             RequestPath = context.Request.Path.Value ?? string.Empty,
-            QueryString = context.Request.QueryString.Value ?? string.Empty,
+            QueryString = string.IsNullOrWhiteSpace(context.Request.QueryString.Value)
+                ? string.Empty
+                : RedactedValue,
             StatusCode = context.Response.StatusCode,
             CorrelationId = context.TraceIdentifier
         });

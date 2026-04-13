@@ -7,6 +7,10 @@ namespace Slottet.Application.Services.Citizens;
 
 public sealed class CreateCitizenService : ICreateCitizenService
 {
+    private const string AnonymizedApartmentNumber = "ANON";
+    private const string AnonymizedMedicationName = "Anonymiseret medicin";
+    private const string AnonymizedDescription = "Anonymiseret";
+
     private readonly ICitizenCreationRepository _citizenCreationRepository;
 
     public CreateCitizenService(ICitizenCreationRepository citizenCreationRepository)
@@ -22,6 +26,76 @@ public sealed class CreateCitizenService : ICreateCitizenService
             .OrderBy(citizen => citizen.Name)
             .Select(MapCitizen)
             .ToList();
+    }
+
+    public async Task<CitizenPersonalDataExportDto?> ExportPersonalDataAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        if (citizenId <= 0)
+        {
+            return null;
+        }
+
+        var citizen = await _citizenCreationRepository.GetCitizenByIdAsync(citizenId, cancellationToken);
+
+        if (citizen is null)
+        {
+            return null;
+        }
+
+        var fixedMedications = await _citizenCreationRepository.GetFixedMedicationsByCitizenIdAsync(citizenId, cancellationToken);
+        var medicationRegistrations = await _citizenCreationRepository.GetMedicationRegistrationsByCitizenIdAsync(citizenId, cancellationToken);
+        var specialEvents = await _citizenCreationRepository.GetSpecialEventsByCitizenIdAsync(citizenId, cancellationToken);
+
+        return new CitizenPersonalDataExportDto
+        {
+            ExportedAtUtc = DateTime.UtcNow,
+            Citizen = new CitizenPersonalDataDto
+            {
+                Id = citizen.Id,
+                Name = citizen.Name,
+                ApartmentNumber = citizen.ApartmentNumber,
+                TrafficLight = citizen.TrafficLight,
+                DepartmentId = citizen.DepartmentId,
+                IsActive = citizen.IsActive
+            },
+            FixedMedications = fixedMedications
+                .OrderBy(x => x.ShiftType)
+                .ThenBy(x => x.ScheduledTime)
+                .Select(x => new CitizenFixedMedicationPersonalDataDto
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    Description = x.Description,
+                    ScheduledTime = x.ScheduledTime,
+                    ShiftType = x.ShiftType,
+                    IsActive = x.IsActive
+                })
+                .ToList(),
+            MedicationRegistrations = medicationRegistrations
+                .OrderByDescending(x => x.RegistrationTime)
+                .Select(x => new CitizenMedicationRegistrationPersonalDataDto
+                {
+                    Id = x.Id,
+                    ShiftId = x.ShiftId,
+                    CitizenFixedMedicationId = x.CitizenFixedMedicationId,
+                    MedicinType = x.MedicinType,
+                    Name = x.Name,
+                    Description = x.Description,
+                    ScheduledTime = x.ScheduledTime,
+                    RegistrationTime = x.RegistrationTime
+                })
+                .ToList(),
+            SpecialEvents = specialEvents
+                .OrderByDescending(x => x.EventTime)
+                .Select(x => new CitizenSpecialEventPersonalDataDto
+                {
+                    Id = x.Id,
+                    ShiftId = x.ShiftId,
+                    Description = x.Description,
+                    EventTime = x.EventTime
+                })
+                .ToList()
+        };
     }
 
     public async Task<CreateCitizenResult> CreateAsync(CreateCitizenRequest request, CancellationToken cancellationToken = default)
@@ -170,6 +244,63 @@ public sealed class CreateCitizenService : ICreateCitizenService
         };
     }
 
+    public async Task<AnonymizeCitizenResult> AnonymizeAsync(int citizenId, CancellationToken cancellationToken = default)
+    {
+        if (citizenId <= 0)
+        {
+            return new AnonymizeCitizenResult
+            {
+                IsSuccess = false,
+                Error = "NotFound"
+            };
+        }
+
+        var citizen = await _citizenCreationRepository.GetByIdAsync(citizenId, cancellationToken);
+
+        if (citizen is null)
+        {
+            return new AnonymizeCitizenResult
+            {
+                IsSuccess = false,
+                Error = "NotFound"
+            };
+        }
+
+        var fixedMedications = await _citizenCreationRepository.GetFixedMedicationsByCitizenIdAsync(citizenId, cancellationToken);
+        var medicationRegistrations = await _citizenCreationRepository.GetMedicationRegistrationsByCitizenIdAsync(citizenId, cancellationToken);
+        var specialEvents = await _citizenCreationRepository.GetSpecialEventsByCitizenIdAsync(citizenId, cancellationToken);
+
+        citizen.Name = BuildAnonymizedCitizenName(citizen.Id);
+        citizen.ApartmentNumber = AnonymizedApartmentNumber;
+        citizen.TrafficLight = TrafficLight.Grøn;
+        citizen.IsActive = false;
+
+        foreach (var fixedMedication in fixedMedications)
+        {
+            fixedMedication.Name = AnonymizedMedicationName;
+            fixedMedication.Description = AnonymizedDescription;
+            fixedMedication.IsActive = false;
+        }
+
+        foreach (var medicationRegistration in medicationRegistrations)
+        {
+            medicationRegistration.Name = AnonymizedMedicationName;
+            medicationRegistration.Description = AnonymizedDescription;
+        }
+
+        foreach (var specialEvent in specialEvents)
+        {
+            specialEvent.Description = AnonymizedDescription;
+        }
+
+        await _citizenCreationRepository.UpdateCitizenAsync(citizen, cancellationToken);
+
+        return new AnonymizeCitizenResult
+        {
+            IsSuccess = true
+        };
+    }
+
     private static CitizenDto MapCitizen(Citizen citizen)
     {
         return new CitizenDto
@@ -181,6 +312,11 @@ public sealed class CreateCitizenService : ICreateCitizenService
             DepartmentId = citizen.DepartmentId,
             IsActive = citizen.IsActive
         };
+    }
+
+    private static string BuildAnonymizedCitizenName(int citizenId)
+    {
+        return $"Anonymiseret borger #{citizenId}";
     }
 
     private static CitizenValidationResult ValidateCitizenData(string name, string apartmentNumber, int departmentId, TrafficLight trafficLight)

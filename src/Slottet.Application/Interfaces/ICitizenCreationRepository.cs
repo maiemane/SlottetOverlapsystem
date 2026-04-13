@@ -10,6 +10,8 @@ public interface ICitizenCreationRepository
     Task<Department?> GetDepartmentByIdAsync(int departmentId, CancellationToken cancellationToken = default);
     Task<CitizenFixedMedication?> GetFixedMedicationByIdAsync(int fixedMedicationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CitizenFixedMedication>> GetFixedMedicationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicinRegistration>> GetMedicationRegistrationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SpecialEvent>> GetSpecialEventsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default);
     Task<Citizen> AddCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default);
     Task<Citizen> UpdateCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default);
     Task<bool> DeleteCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default);

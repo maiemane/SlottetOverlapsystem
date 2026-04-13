@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Slottet.Domain.Entities;
 using Slottet.Domain.Enums;
 
@@ -22,6 +24,11 @@ public static class ApplicationDbSeeder
 
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger("Slottet.Infrastructure.Data.LogRetention");
+        var retentionOptions = scope.ServiceProvider.GetRequiredService<IOptions<LogRetentionOptions>>().Value;
+
+        await CleanupExpiredLogsAsync(dbContext, retentionOptions, logger, cancellationToken);
 
         var requiredDepartmentNames = new[]
         {
@@ -130,6 +137,45 @@ public static class ApplicationDbSeeder
         }
 
         await dbContext.Database.MigrateAsync(cancellationToken);
+    }
+
+    private static async Task CleanupExpiredLogsAsync(
+        ApplicationDbContext dbContext,
+        LogRetentionOptions options,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (!options.Enabled)
+        {
+            logger.LogInformation("Log retention cleanup is disabled.");
+            return;
+        }
+
+        if (options.AuditLogRetentionDays > 0)
+        {
+            var auditThresholdUtc = DateTime.UtcNow.AddDays(-options.AuditLogRetentionDays);
+            var deletedAuditLogs = await dbContext.AuditLogs
+                .Where(log => log.OccurredAtUtc < auditThresholdUtc)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Deleted {DeletedAuditLogs} audit logs older than {AuditThresholdUtc}.",
+                deletedAuditLogs,
+                auditThresholdUtc);
+        }
+
+        if (options.AccessLogRetentionDays > 0)
+        {
+            var accessThresholdUtc = DateTime.UtcNow.AddDays(-options.AccessLogRetentionDays);
+            var deletedAccessLogs = await dbContext.AccessLogs
+                .Where(log => log.OccurredAtUtc < accessThresholdUtc)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Deleted {DeletedAccessLogs} access logs older than {AccessThresholdUtc}.",
+                deletedAccessLogs,
+                accessThresholdUtc);
+        }
     }
 
     private static Employee CreateEmployee(

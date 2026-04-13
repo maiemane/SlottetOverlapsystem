@@ -13,6 +13,9 @@ services:
       Jwt__SigningKey: "${SLOTTET_JWT_SIGNING_KEY:?SLOTTET_JWT_SIGNING_KEY is required}"
       Jwt__ExpirationMinutes: "${SLOTTET_JWT_EXPIRATION_MINUTES:-60}"
       Swagger__Enabled: "${SLOTTET_SWAGGER_ENABLED:-true}"
+      LogRetention__Enabled: "${SLOTTET_LOG_RETENTION_ENABLED:-true}"
+      LogRetention__AuditLogRetentionDays: "${SLOTTET_LOG_RETENTION_AUDIT_DAYS:-180}"
+      LogRetention__AccessLogRetentionDays: "${SLOTTET_LOG_RETENTION_ACCESS_DAYS:-90}"
       Cors__AllowedOrigins__0: "${SLOTTET_WEB_ORIGIN_HTTP:-http://localhost:8080}"
       Cors__AllowedOrigins__1: "${SLOTTET_WEB_ORIGIN_HTTPS:-https://localhost:8443}"
     ports:

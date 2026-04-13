@@ -171,6 +171,16 @@ public class CitizenFixedMedicationServiceTests
             return Task.FromResult(medications);
         }
 
+        public Task<IReadOnlyList<MedicinRegistration>> GetMedicationRegistrationsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<MedicinRegistration>>([]);
+        }
+
+        public Task<IReadOnlyList<SpecialEvent>> GetSpecialEventsByCitizenIdAsync(int citizenId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SpecialEvent>>([]);
+        }
+
         public Task<Citizen> AddCitizenAsync(Citizen citizen, CancellationToken cancellationToken = default)
         {
             citizen.Id = 10;

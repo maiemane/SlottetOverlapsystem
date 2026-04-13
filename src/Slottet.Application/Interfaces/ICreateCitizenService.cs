@@ -5,7 +5,9 @@ namespace Slottet.Application.Interfaces;
 public interface ICreateCitizenService
 {
     Task<IReadOnlyList<CitizenDto>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<CitizenPersonalDataExportDto?> ExportPersonalDataAsync(int citizenId, CancellationToken cancellationToken = default);
     Task<CreateCitizenResult> CreateAsync(CreateCitizenRequest request, CancellationToken cancellationToken = default);
     Task<UpdateCitizenResult> UpdateAsync(int citizenId, UpdateCitizenRequest request, CancellationToken cancellationToken = default);
     Task<DeleteCitizenResult> DeleteAsync(int citizenId, CancellationToken cancellationToken = default);
+    Task<AnonymizeCitizenResult> AnonymizeAsync(int citizenId, CancellationToken cancellationToken = default);
 }
