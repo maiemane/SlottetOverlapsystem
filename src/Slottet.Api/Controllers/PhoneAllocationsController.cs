@@ -6,7 +6,7 @@ using Slottet.Application.Interfaces;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin,Vagtansvarlig")]
+[Authorize]
 [Route("api/shifts/{shiftId:int}/phone-allocations")]
 public sealed class PhoneAllocationsController : ControllerBase
 {
@@ -18,6 +18,7 @@ public sealed class PhoneAllocationsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin,Vagtansvarlig,Medarbejder")]
     public async Task<ActionResult<IReadOnlyList<PhoneAllocationDto>>> Get(int shiftId, CancellationToken cancellationToken)
     {
         var phoneAllocations = await _phoneAllocationService.GetByShiftAsync(shiftId, cancellationToken);
@@ -31,6 +32,7 @@ public sealed class PhoneAllocationsController : ControllerBase
     }
 
     [HttpGet("{phoneAllocationId:int}")]
+    [Authorize(Roles = "Admin,Vagtansvarlig,Medarbejder")]
     public async Task<ActionResult<PhoneAllocationDto>> GetById(int shiftId, int phoneAllocationId, CancellationToken cancellationToken)
     {
         var phoneAllocation = await _phoneAllocationService.GetByIdAsync(shiftId, phoneAllocationId, cancellationToken);
@@ -44,6 +46,7 @@ public sealed class PhoneAllocationsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Vagtansvarlig")]
     public async Task<ActionResult<PhoneAllocationDto>> Create(int shiftId, [FromBody] CreatePhoneAllocationRequest request, CancellationToken cancellationToken)
     {
         var result = await _phoneAllocationService.CreateAsync(shiftId, request, cancellationToken);
@@ -66,6 +69,7 @@ public sealed class PhoneAllocationsController : ControllerBase
     }
 
     [HttpPut("{phoneAllocationId:int}")]
+    [Authorize(Roles = "Admin,Vagtansvarlig")]
     public async Task<ActionResult<PhoneAllocationDto>> Update(int shiftId, int phoneAllocationId, [FromBody] UpdatePhoneAllocationRequest request, CancellationToken cancellationToken)
     {
         var result = await _phoneAllocationService.UpdateAsync(shiftId, phoneAllocationId, request, cancellationToken);
@@ -89,6 +93,7 @@ public sealed class PhoneAllocationsController : ControllerBase
     }
 
     [HttpDelete("{phoneAllocationId:int}")]
+    [Authorize(Roles = "Admin,Vagtansvarlig")]
     public async Task<IActionResult> Delete(int shiftId, int phoneAllocationId, CancellationToken cancellationToken)
     {
         var result = await _phoneAllocationService.DeleteAsync(shiftId, phoneAllocationId, cancellationToken);
