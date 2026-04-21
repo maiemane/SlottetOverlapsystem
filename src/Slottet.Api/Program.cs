@@ -142,6 +142,7 @@ builder.Services.AddScoped<IShiftDefinitionRepository, ShiftDefinitionRepository
 builder.Services.AddScoped<IShiftTaskRepository, ShiftTaskRepository>();
 builder.Services.AddScoped<ISpecialEventRepository, SpecialEventRepository>();
 builder.Services.AddScoped<IStaffAllocationRepository, StaffAllocationRepository>();
+builder.Services.AddScoped<IHistoryService, Slottet.Application.Services.HistoryService>();
 
 var app = builder.Build();
 
