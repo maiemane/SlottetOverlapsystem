@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -9,9 +8,10 @@ using Microsoft.OpenApi;
 using Slottet.Application.Interfaces;
 using Slottet.Application.Services.Audit;
 using Slottet.Application.Services.Auth;
-using Slottet.Application.Services.Employees;
 using Slottet.Application.Services.Citizens;
 using Slottet.Application.Services.Departments;
+using Slottet.Application.Services.Employees;
+using Slottet.Application.Services.History;
 using Slottet.Application.Services.Medications;
 using Slottet.Application.Services.Overlap;
 using Slottet.Application.Services.PhoneAllocations;
@@ -25,6 +25,7 @@ using Slottet.Infrastructure.Auth;
 using Slottet.Infrastructure.Data;
 using Slottet.Infrastructure.Logging;
 using Slottet.Infrastructure.Repositories;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -142,6 +143,8 @@ builder.Services.AddScoped<IShiftDefinitionRepository, ShiftDefinitionRepository
 builder.Services.AddScoped<IShiftTaskRepository, ShiftTaskRepository>();
 builder.Services.AddScoped<ISpecialEventRepository, SpecialEventRepository>();
 builder.Services.AddScoped<IStaffAllocationRepository, StaffAllocationRepository>();
+builder.Services.AddScoped<IHistoryRepository, HistoryRepository>();
+builder.Services.AddScoped<IHistoryService, HistoryService>();
 
 var app = builder.Build();
 

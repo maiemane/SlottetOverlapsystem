@@ -1,0 +1,485 @@
+﻿@page "/admin/historik"
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+
+<PageTitle>Historik</PageTitle>
+
+@if (IsAdmin)
+{
+    <section class="history-shell">
+        <header class="history-header">
+            <div>
+                <h1>Historik</h1>
+                <p>Generer og hent rapporter over hændelser og registreringer i systemet.</p>
+            </div>
+            <div class="history-header-actions">
+                <button type="button" class="btn btn-primary" @onclick="DownloadReportAsync"
+                        disabled="@(!CanDownload)">
+                    @(IsDownloading ? "Henter rapport..." : "Hent rapport (CSV)")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="alert @StatusCssClass" role="alert">@StatusMessage</div>
+        }
+
+        {{!-- Filter panel --}}
+        <section class="history-filters">
+            <div class="filter-group">
+                <label class="filter-label">
+                    <span>Fra dato</span>
+                    <input type="date" class="filter-input"
+                           value="@FromDate.ToString("yyyy-MM-dd")"
+                           @onchange="HandleFromDateChangedAsync" />
+                </label>
+                <label class="filter-label">
+                    <span>Til dato</span>
+                    <input type="date" class="filter-input"
+                           value="@ToDate.ToString("yyyy-MM-dd")"
+                           @onchange="HandleToDateChangedAsync" />
+                </label>
+                <label class="filter-label">
+                    <span>Borger</span>
+                    <select class="filter-input" value="@SelectedCitizenId"
+                            @onchange="HandleCitizenFilterChangedAsync">
+                        <option value="">Alle borgere</option>
+                        @foreach (var citizen in Citizens)
+                        {
+                            <option value="@citizen.Id">@($"{citizen.Name} – lejlighed {citizen.ApartmentNumber}")</option>
+                        }
+                    </select>
+                </label>
+                <label class="filter-label">
+                    <span>Type</span>
+                    <select class="filter-input" value="@SelectedEventType"
+                            @onchange="HandleEventTypeChangedAsync">
+                        <option value="">Alle typer</option>
+                        <option value="Medication">Medicinregistreringer</option>
+                        <option value="SpecialEvent">Særlige hændelser</option>
+                    </select>
+                </label>
+                <label class="filter-label">
+                    <span>Antal</span>
+                    <select class="filter-input" value="@SelectedTake"
+                            @onchange="HandleTakeChangedAsync">
+                        @foreach (var option in TakeOptions)
+                        {
+                            <option value="@option">@option</option>
+                        }
+                    </select>
+                </label>
+                <button type="button" class="btn btn-outline-secondary filter-btn"
+                        @onclick="LoadHistoryAsync" disabled="@IsLoading">
+                    @(IsLoading ? "Indlæser..." : "Søg")
+                </button>
+            </div>
+        </section>
+
+        {{!-- Results --}}
+        <section class="history-card">
+            @if (IsLoading)
+            {
+                <p class="mb-0">Indlæser historik...</p>
+            }
+            else if (Events.Count == 0)
+            {
+                <p class="mb-0">Ingen hændelser fundet for de valgte filtre.</p>
+            }
+            else
+            {
+                <div class="history-count">Viser @Events.Count hændelse(r)</div>
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Tidspunkt</th>
+                                <th>Borger</th>
+                                <th>Type</th>
+                                <th>Beskrivelse</th>
+                                <th>Registreret af</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var evt in Events)
+                            {
+                                <tr>
+                                    <td>@FormatDateTime(evt.OccurredAtUtc)</td>
+                                    <td>@evt.CitizenName</td>
+                                    <td>
+                                        <span class="event-badge event-badge--@evt.EventType.ToLower()">
+                                            @FormatEventType(evt.EventType)
+                                        </span>
+                                    </td>
+                                    <td class="history-desc-cell">@evt.Description</td>
+                                    <td>@FormatEmployeeId(evt.EmployeeId)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </section>
+}
+
+<style>
+    .history-shell {
+        padding: 2rem 0 3rem;
+        color: #19352c;
+        display: grid;
+        gap: 1rem;
+    }
+
+    .history-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+        .history-header h1 {
+            margin: 0;
+        }
+
+        .history-header p {
+            margin: 0.35rem 0 0;
+            color: #5d7469;
+        }
+
+    .history-header-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: end;
+        flex-wrap: wrap;
+    }
+
+    .history-filters {
+        padding: 1rem;
+        border: 1px solid #d6e2da;
+        border-radius: 1rem;
+        background: #f9fcfa;
+    }
+
+    .filter-group {
+        display: flex;
+        gap: 1rem;
+        align-items: end;
+        flex-wrap: wrap;
+    }
+
+    .filter-label {
+        display: grid;
+        gap: 0.25rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #486257;
+    }
+
+    .filter-input {
+        padding: 0.45rem 0.6rem;
+        border: 1px solid #bfd1c4;
+        border-radius: 0.65rem;
+        background: #fff;
+        min-width: 9rem;
+    }
+
+    .filter-btn {
+        align-self: end;
+    }
+
+    .history-card {
+        border: 1px solid #d6e2da;
+        border-radius: 1rem;
+        background: #fff;
+        padding: 1rem;
+        box-shadow: 0 8px 20px rgba(34, 63, 50, 0.06);
+    }
+
+    .history-count {
+        font-size: 0.85rem;
+        color: #5d7469;
+        margin-bottom: 0.75rem;
+    }
+
+    .history-desc-cell {
+        max-width: 24rem;
+        word-break: break-word;
+    }
+
+    .event-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .event-badge--medication {
+        background: #dff0ea;
+        color: #1e5c40;
+    }
+
+    .event-badge--specialevent {
+        background: #fdeee0;
+        color: #7a3a10;
+    }
+</style>
+
+@code {
+    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
+    private bool CanDownload => !IsLoading && !IsDownloading && Events.Count > 0;
+
+    private readonly int[] TakeOptions = [25, 50, 100, 250, 500];
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    private bool IsLoading { get; set; }
+    private bool IsDownloading { get; set; }
+    private string? StatusMessage { get; set; }
+    private string StatusCssClass { get; set; } = "alert-info";
+
+    private DateTime FromDate { get; set; } = DateTime.Today.AddDays(-30);
+    private DateTime ToDate { get; set; } = DateTime.Today;
+    private string? SelectedCitizenId { get; set; }
+    private string? SelectedEventType { get; set; }
+    private int SelectedTake { get; set; } = 100;
+
+    private List<HistoryEventRow> Events { get; set; } = [];
+    private List<CitizenOptionRow> Citizens { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsAdmin)
+        {
+            NavigationManager.NavigateTo("/app", replace: true);
+            return;
+        }
+
+        await LoadCitizensAsync();
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadCitizensAsync()
+    {
+        try
+        {
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync("api/citizens");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            Citizens = await response.Content.ReadFromJsonAsync<List<CitizenOptionRow>>() ?? [];
+            Citizens = Citizens.OrderBy(c => c.Name).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            // non-critical — filter simply shows "Alle borgere"
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        IsLoading = true;
+        StatusMessage = null;
+
+        try
+        {
+            var url = BuildQueryUrl();
+            using var client = AuthService.CreateApiClient();
+            using var response = await client.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                StatusMessage = "Du har ikke adgang til historikdata.";
+                StatusCssClass = "alert-danger";
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            Events = await response.Content.ReadFromJsonAsync<List<HistoryEventRow>>() ?? [];
+
+            if (Events.Count == 0)
+            {
+                StatusMessage = "Ingen hændelser fundet for de valgte filtre.";
+                StatusCssClass = "alert-info";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            StatusMessage = "Kunne ikke hente historik fra API'et.";
+            StatusCssClass = "alert-danger";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task DownloadReportAsync()
+    {
+        IsDownloading = true;
+        StatusMessage = null;
+
+        try
+        {
+            var csv = BuildCsv(Events);
+            var filename = $"historik_{FromDate:yyyy-MM-dd}_{ToDate:yyyy-MM-dd}.csv";
+            await DownloadFileAsync(filename, csv);
+
+            StatusMessage = $"Rapport downloaded: {filename}";
+            StatusCssClass = "alert-success";
+        }
+        catch (Exception)
+        {
+            StatusMessage = "Rapporten kunne ikke genereres.";
+            StatusCssClass = "alert-danger";
+        }
+        finally
+        {
+            IsDownloading = false;
+        }
+    }
+
+    private string BuildQueryUrl()
+    {
+        var sb = new StringBuilder("api/admin/history?");
+        sb.Append($"from={FromDate:yyyy-MM-dd}&to={ToDate:yyyy-MM-dd}&take={SelectedTake}");
+
+        if (!string.IsNullOrWhiteSpace(SelectedCitizenId))
+        {
+            sb.Append($"&citizenId={SelectedCitizenId}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedEventType))
+        {
+            sb.Append($"&type={SelectedEventType}");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string BuildCsv(IEnumerable<HistoryEventRow> rows)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Tidspunkt;Borger;Type;Beskrivelse;Registreret af (medarbejder-id)");
+
+        foreach (var row in rows)
+        {
+            var timestamp = row.OccurredAtUtc.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss");
+            var citizen = EscapeCsv(row.CitizenName);
+            var type = EscapeCsv(FormatEventType(row.EventType));
+            var desc = EscapeCsv(row.Description);
+            var emp = row.EmployeeId?.ToString() ?? "Ukendt";
+
+            sb.AppendLine($"{timestamp};{citizen};{type};{desc};{emp}");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        if (value.Contains(';') || value.Contains('"') || value.Contains('\n'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+        return value;
+    }
+
+    // JS interop helper — injects a temporary <a> download trigger
+    [Microsoft.AspNetCore.Components.Inject]
+    private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
+
+    private async Task DownloadFileAsync(string filename, string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFileFromBase64", filename, "text/csv;charset=utf-8;", base64);
+    }
+
+    private Task HandleFromDateChangedAsync(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var d))
+        {
+            FromDate = d;
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task HandleToDateChangedAsync(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var d))
+        {
+            ToDate = d;
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCitizenFilterChangedAsync(ChangeEventArgs e)
+    {
+        SelectedCitizenId = e.Value?.ToString();
+        return Task.CompletedTask;
+    }
+
+    private Task HandleEventTypeChangedAsync(ChangeEventArgs e)
+    {
+        SelectedEventType = e.Value?.ToString();
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleTakeChangedAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var take))
+        {
+            SelectedTake = take;
+        }
+        await Task.CompletedTask;
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        var utc = value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            : value.ToUniversalTime();
+        return utc.ToLocalTime().ToString("dd-MM-yyyy HH:mm:ss");
+    }
+
+    private static string FormatEventType(string type) => type switch
+    {
+        "Medication" => "Medicinregistrering",
+        "SpecialEvent" => "Særlig hændelse",
+        _ => type
+    };
+
+    private static string FormatEmployeeId(int? employeeId)
+        => employeeId?.ToString() ?? "Ukendt";
+
+    // --- DTOs ---
+
+    private sealed class CitizenOptionRow
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ApartmentNumber { get; set; } = string.Empty;
+    }
+
+    private sealed class HistoryEventRow
+    {
+        public int Id { get; set; }
+        public DateTime OccurredAtUtc { get; set; }
+        public string CitizenName { get; set; } = string.Empty;
+        public string EventType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int? EmployeeId { get; set; }
+    }
+}
