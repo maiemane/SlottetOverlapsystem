@@ -1,22 +1,18 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Slottet.Application.DTOs.History;
+﻿using Slottet.Application.DTOs.History;
 using Slottet.Application.Interfaces;
-using Slottet.Infrastructure.Data;
 
-namespace Slottet.Application.Services;
+namespace Slottet.Application.Services.History;
 
-/// <summary>
-/// Aggregates history events from MedicationRegistrations and SpecialEvents.
-/// Follows the same repository-less, DbContext-injected pattern used elsewhere
-/// in the infrastructure layer (e.g. AuditLogService).
-/// </summary>
 public sealed class HistoryService : IHistoryService
 {
-    private readonly ApplicationDbContext _db;
+    private const int DefaultTake = 100;
+    private const int MaxTake = 500;
 
-    public HistoryService(ApplicationDbContext db)
+    private readonly IHistoryRepository _historyRepository;
+
+    public HistoryService(IHistoryRepository historyRepository)
     {
-        _db = db;
+        _historyRepository = historyRepository;
     }
 
     public async Task<IReadOnlyList<HistoryEventDto>> GetHistoryAsync(
@@ -24,77 +20,81 @@ public sealed class HistoryService : IHistoryService
         DateTime toUtc,
         int? citizenId,
         string? eventType,
-        int take)
+        int take,
+        CancellationToken cancellationToken = default)
     {
-        var results = new List<HistoryEventDto>();
+        var resolvedTake = ResolveTake(take);
 
         bool includeMedication = string.IsNullOrWhiteSpace(eventType) || eventType == "Medication";
         bool includeSpecialEvent = string.IsNullOrWhiteSpace(eventType) || eventType == "SpecialEvent";
 
-        // --- Medication registrations ---
+        // Intermediate list keeps CitizenId so we can resolve names in one query
+        var pending = new List<(int CitizenId, HistoryEventDto Dto)>();
+
         if (includeMedication)
         {
-            var medQuery = _db.MedicationRegistrations
-                .AsNoTracking()
-                .Include(r => r.Citizen)
-                .Where(r => r.RegisteredAtUtc >= fromUtc && r.RegisteredAtUtc <= toUtc);
+            var regs = await _historyRepository.GetMedicinRegistrationsAsync(
+                fromUtc, toUtc, citizenId, resolvedTake, cancellationToken);
 
-            if (citizenId.HasValue)
+            foreach (var reg in regs)
             {
-                medQuery = medQuery.Where(r => r.CitizenId == citizenId.Value);
-            }
-
-            var meds = await medQuery
-                .OrderByDescending(r => r.RegisteredAtUtc)
-                .Take(take)
-                .Select(r => new HistoryEventDto
+                var dto = new HistoryEventDto
                 {
-                    Id = r.Id,
-                    OccurredAtUtc = r.RegisteredAtUtc,
-                    CitizenName = r.Citizen.Name,
+                    Id = reg.Id,
+                    OccurredAtUtc = reg.RegistrationTime,
                     EventType = "Medication",
-                    Description = r.Notes ?? string.Empty,
-                    EmployeeId = r.EmployeeId
-                })
-                .ToListAsync();
+                    Description = string.IsNullOrWhiteSpace(reg.Description)
+                                        ? reg.Name
+                                        : $"{reg.Name} – {reg.Description}"
+                };
 
-            results.AddRange(meds);
+                pending.Add((reg.CitizenId, dto));
+            }
         }
 
-        // --- Special events ---
         if (includeSpecialEvent)
         {
-            var evtQuery = _db.SpecialEvents
-                .AsNoTracking()
-                .Include(e => e.Citizen)
-                .Where(e => e.OccurredAtUtc >= fromUtc && e.OccurredAtUtc <= toUtc);
+            var events = await _historyRepository.GetSpecialEventsAsync(
+                fromUtc, toUtc, citizenId, resolvedTake, cancellationToken);
 
-            if (citizenId.HasValue)
+            foreach (var evt in events)
             {
-                evtQuery = evtQuery.Where(e => e.CitizenId == citizenId.Value);
-            }
-
-            var evts = await evtQuery
-                .OrderByDescending(e => e.OccurredAtUtc)
-                .Take(take)
-                .Select(e => new HistoryEventDto
+                var dto = new HistoryEventDto
                 {
-                    Id = e.Id,
-                    OccurredAtUtc = e.OccurredAtUtc,
-                    CitizenName = e.Citizen.Name,
+                    Id = evt.Id,
+                    OccurredAtUtc = evt.EventTime,
                     EventType = "SpecialEvent",
-                    Description = e.Description,
-                    EmployeeId = e.EmployeeId
-                })
-                .ToListAsync();
+                    Description = evt.Description
+                };
 
-            results.AddRange(evts);
+                pending.Add((evt.CitizenId, dto));
+            }
         }
 
-        // Merge, sort and cap at requested take
-        return results
-            .OrderByDescending(r => r.OccurredAtUtc)
-            .Take(take)
+        // Resolve all citizen names in a single query
+        var allCitizenIds = pending.Select(p => p.CitizenId).Distinct();
+        var citizens = await _historyRepository.GetCitizensByIdsAsync(allCitizenIds, cancellationToken);
+        var citizenNameMap = citizens.ToDictionary(c => c.Id, c => c.Name);
+
+        foreach (var (cid, dto) in pending)
+        {
+            dto.CitizenName = citizenNameMap.TryGetValue(cid, out var name) ? name : string.Empty;
+        }
+
+        return pending
+            .Select(p => p.Dto)
+            .OrderByDescending(d => d.OccurredAtUtc)
+            .Take(resolvedTake)
             .ToList();
+    }
+
+    private static int ResolveTake(int take)
+    {
+        if (take <= 0)
+        {
+            return DefaultTake;
+        }
+
+        return Math.Min(take, MaxTake);
     }
 }
