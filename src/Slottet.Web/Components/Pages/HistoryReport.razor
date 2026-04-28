@@ -29,7 +29,7 @@
             <div class="alert @StatusCssClass" role="alert">@StatusMessage</div>
         }
 
-        {{!-- Filter panel --}}
+        @* Filter panel *@
         <section class="history-filters">
             <div class="filter-group">
                 <label class="filter-label">
@@ -81,7 +81,7 @@
             </div>
         </section>
 
-        {{!-- Results --}}
+        @* Results *@
         <section class="history-card">
             @if (IsLoading)
             {

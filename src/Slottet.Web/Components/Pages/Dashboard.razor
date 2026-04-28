@@ -481,21 +481,25 @@
                                          Value="SelectedCitizen.TrafficLight"
                                          ValueChanged="HandleSelectedCitizenTrafficLightChanged"
                                          ValueExpression="() => SelectedCitizen.TrafficLight"
-                                         disabled="@(!CanEditTrafficLight || IsSaving)">
+                                         disabled="@IsSaving">
                                 @foreach (var option in TrafficLightOptions)
                                 {
                                     <option value="@option.Value">@option.Label</option>
                                 }
                             </InputSelect>
-                            @if (!CanEditTrafficLight)
-                            {
-                                <small class="text-muted">Kun admin kan gemme ændring af lyskrydsstatus.</small>
-                            }
                         </div>
                     </section>
 
                     <section class="overlap-modal-section">
                         <h3 class="overlap-modal-section-title">Medicin</h3>
+                        <div class="overlap-event-toolbar">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    @onclick="AddPnMedication"
+                                    disabled="@(IsSaving || !CanRegisterMedication)">
+                                Tilføj PN medicin
+                            </button>
+                        </div>
                         @if (SelectedCitizen.Medications.Count == 0)
                         {
                             <p class="mb-0">Ingen medicin på denne vagt.</p>
@@ -515,8 +519,22 @@
                                                disabled="@(IsSaving || !CanRegisterMedication)"
                                                @bind:event="onchange" />
                                         <div>
-                                            <strong>@medication.Name</strong>
-                                            <p>@medication.Description</p>
+                                            @if (medication.MedicinType == 2)
+                                            {
+                                                <InputText class="form-control mb-2"
+                                                           @bind-Value="medication.Name"
+                                                           disabled="@(IsSaving || !CanRegisterMedication)"
+                                                           placeholder="Navn på PN medicin" />
+                                                <InputText class="form-control mb-2"
+                                                           @bind-Value="medication.Description"
+                                                           disabled="@(IsSaving || !CanRegisterMedication)"
+                                                           placeholder="Beskrivelse (valgfri)" />
+                                            }
+                                            else
+                                            {
+                                                <strong>@medication.Name</strong>
+                                                <p>@medication.Description</p>
+                                            }
                                             <small>@FormatMedicationLine(medication)</small>
                                         </div>
                                     </label>
@@ -1264,7 +1282,6 @@
     private int NewPhoneAllocationEmployeeId { get; set; }
     private DateTime SelectedDate { get; set; } = DateTime.Today;
 
-    private bool CanEditTrafficLight => AuthService.CurrentUser?.Role == "Admin";
     private bool CanRegisterMedication => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
     private bool CanManageSpecialEvents => AuthService.CurrentUser?.Role is "Admin" or "Medarbejder";
     private bool CanManageResponsibilities => AuthService.CurrentUser?.Role is "Admin" or "Vagtansvarlig";
@@ -1559,27 +1576,20 @@
 
             if (SelectedCitizen.TrafficLight != SelectedCitizen.OriginalTrafficLight)
             {
-                if (!CanEditTrafficLight)
-                {
-                    errors.Add("Lyskrydsstatus kan kun gemmes af admin.");
-                }
-                else
-                {
-                    using var citizenUpdateResponse = await client.PutAsJsonAsync(
-                        $"api/citizens/{SelectedCitizen.CitizenId}",
-                        new
-                        {
-                            name = SelectedCitizen.CitizenName,
-                            apartmentNumber = SelectedCitizen.ApartmentNumber,
-                            trafficLight = SelectedCitizen.TrafficLight,
-                            departmentId,
-                            isActive = true
-                        });
-
-                    if (!citizenUpdateResponse.IsSuccessStatusCode)
+                using var citizenUpdateResponse = await client.PutAsJsonAsync(
+                    $"api/citizens/{SelectedCitizen.CitizenId}",
+                    new
                     {
-                        errors.Add("Kunne ikke gemme lyskrydsstatus.");
-                    }
+                        name = SelectedCitizen.CitizenName,
+                        apartmentNumber = SelectedCitizen.ApartmentNumber,
+                        trafficLight = SelectedCitizen.TrafficLight,
+                        departmentId,
+                        isActive = true
+                    });
+
+                if (!citizenUpdateResponse.IsSuccessStatusCode)
+                {
+                    errors.Add("Kunne ikke gemme lyskrydsstatus.");
                 }
             }
 
@@ -1620,12 +1630,21 @@
 
                     foreach (var medication in newMedicationRegistrations)
                     {
+                        if (medication.MedicinType == 2 && string.IsNullOrWhiteSpace(medication.Name))
+                        {
+                            errors.Add("PN medicin skal have et navn.");
+                            break;
+                        }
+
                         using var medicationResponse = await client.PostAsJsonAsync(
                             $"api/shifts/{Overview.ShiftId}/citizens/{SelectedCitizen.CitizenId}/medication-registrations",
                             new
                             {
                                 medicinType = medication.MedicinType,
                                 citizenFixedMedicationId = medication.FixedMedicationId,
+                                name = medication.Name,
+                                description = medication.Description,
+                                scheduledTime = medication.ScheduledTime,
                                 registrationTime = DateTime.UtcNow
                             });
 
@@ -2473,11 +2492,31 @@
 
     private static string FormatMedicationLine(MedicationItemModel medication)
     {
-        var planned = medication.ScheduledTime.ToString("HH:mm");
+        var planned = medication.MedicinType == 2
+            ? "PN"
+            : medication.ScheduledTime.ToString("HH:mm");
         var status = medication.IsRegistered
             ? $"Registreret {medication.RegistrationTime?.ToString("HH:mm") ?? string.Empty}".Trim()
             : "Ikke registreret";
         return $"{planned} • {status}";
+    }
+
+    private void AddPnMedication()
+    {
+        if (SelectedCitizen is null || IsSaving || !CanRegisterMedication)
+        {
+            return;
+        }
+
+        SelectedCitizen.Medications.Add(new MedicationItemModel
+        {
+            MedicinType = 2,
+            Name = string.Empty,
+            Description = string.Empty,
+            ScheduledTime = DateTime.UtcNow,
+            IsRegistered = true,
+            InitiallyRegistered = false
+        });
     }
 
     private static int ResolveShiftType(string selectedShift)

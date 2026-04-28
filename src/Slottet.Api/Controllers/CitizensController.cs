@@ -6,7 +6,7 @@ using Slottet.Application.Interfaces;
 namespace Slottet.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize]
 [Route("api/[controller]")]
 public sealed class CitizensController : ControllerBase
 {
@@ -24,6 +24,7 @@ public sealed class CitizensController : ControllerBase
         _citizenFixedMedicationService = citizenFixedMedicationService;
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CitizenDto>>> GetAll(CancellationToken cancellationToken)
     {
@@ -31,6 +32,7 @@ public sealed class CitizensController : ControllerBase
         return Ok(citizens);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("{citizenId:int}/personal-data")]
     public async Task<ActionResult<CitizenPersonalDataExportDto>> ExportPersonalData(
         int citizenId,
@@ -46,6 +48,7 @@ public sealed class CitizensController : ControllerBase
         return Ok(export);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<CreateCitizenResponse>> Create(
         [FromBody] CreateCitizenRequest request,
@@ -69,6 +72,7 @@ public sealed class CitizensController : ControllerBase
             result.Citizen);
     }
 
+    [Authorize(Roles = "Admin,Medarbejder,Vagtansvarlig")]
     [HttpPut("{citizenId:int}")]
     public async Task<ActionResult<CitizenDto>> Update(
         int citizenId,
@@ -91,6 +95,7 @@ public sealed class CitizensController : ControllerBase
         return Ok(result.Citizen);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{citizenId:int}")]
     public async Task<IActionResult> Delete(int citizenId, CancellationToken cancellationToken)
     {
@@ -109,6 +114,7 @@ public sealed class CitizensController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("{citizenId:int}/anonymize")]
     public async Task<IActionResult> Anonymize(int citizenId, CancellationToken cancellationToken)
     {
@@ -126,6 +132,7 @@ public sealed class CitizensController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("{citizenId:int}/fixed-medications")]
     public async Task<ActionResult<CreateCitizenFixedMedicationResponse>> CreateFixedMedication(
         int citizenId,
@@ -151,6 +158,7 @@ public sealed class CitizensController : ControllerBase
             result.FixedMedication);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("{citizenId:int}/fixed-medications")]
     public async Task<ActionResult<IReadOnlyList<CitizenFixedMedicationDto>>> GetFixedMedications(
         int citizenId,
@@ -166,6 +174,7 @@ public sealed class CitizensController : ControllerBase
         return Ok(medications);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("{citizenId:int}/fixed-medications/{fixedMedicationId:int}")]
     public async Task<ActionResult<CitizenFixedMedicationDto>> GetFixedMedication(
         int citizenId,
@@ -182,6 +191,7 @@ public sealed class CitizensController : ControllerBase
         return Ok(medication);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{citizenId:int}/fixed-medications/{fixedMedicationId:int}")]
     public async Task<ActionResult<CitizenFixedMedicationDto>> UpdateFixedMedication(
         int citizenId,
