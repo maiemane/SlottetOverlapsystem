@@ -3,6 +3,7 @@ using Slottet.Auth;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Slottet.Infrastructure.Data;
 
@@ -16,8 +17,10 @@ var apiOptions = builder.Configuration.GetSection(AuthApiOptions.SectionName).Ge
                 ?? throw new InvalidOperationException("Api configuration is missing.");
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<AuthService>());
 builder.Services.AddScoped<IAuthSessionStore, BrowserSessionAuthStore>();
-builder.Services.AddScoped<BearerTokenHandler>();
+builder.Services.AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHealthChecks();
 var connectionString = builder.Configuration.GetConnectionString("SlottetDb")
                       ?? throw new InvalidOperationException("Connection string 'SlottetDb' was not found.");
@@ -32,7 +35,7 @@ builder.Services.AddDataProtection()
 builder.Services.AddHttpClient("SlottetApi", client =>
 {
     client.BaseAddress = new Uri(apiOptions.BaseUrl);
-}).AddHttpMessageHandler<BearerTokenHandler>();
+});
 
 var app = builder.Build();
 

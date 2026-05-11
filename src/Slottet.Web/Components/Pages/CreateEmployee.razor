@@ -1,15 +1,13 @@
 @page "/admin/opret-medarbejder"
+@attribute [Authorize(Roles = "Admin")]
 @using System.ComponentModel.DataAnnotations
 @using System.Net
 @using System.Net.Http.Json
-@inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
 <PageTitle>Opret Medarbejder</PageTitle>
 
-@if (IsAdmin)
-{
-    <section class="p-4">
+<section class="p-4">
         <h1>Opret Medarbejder</h1>
         <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
             <h2 class="h4 mb-0">Medarbejdere</h2>
@@ -223,11 +221,9 @@
                 </div>
             </div>
         }
-    </section>
-}
+</section>
 
 @code {
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
     private List<EmployeeListItem> Employees { get; set; } = [];
     private CreateEmployeeFormModel Model { get; set; } = new();
     private EditEmployeeFormModel EditModel { get; set; } = new();
@@ -245,12 +241,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!IsAdmin)
-        {
-            NavigationManager.NavigateTo("/app", replace: true);
-            return;
-        }
-
         await LoadEmployeesAsync();
     }
 

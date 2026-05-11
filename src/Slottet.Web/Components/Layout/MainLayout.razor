@@ -1,15 +1,14 @@
 ﻿@inherits LayoutComponentBase
-@implements IDisposable
 @inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
-<div class="page @(AuthService.IsAuthenticated ? "page-authenticated" : "page-guest")">
-    @if (AuthService.IsAuthenticated)
-    {
+<AuthorizeView>
+    <Authorized Context="authState">
+        <div class="page page-authenticated">
         <div class="top-row px-4">
             <div class="session-meta">
-                <span class="session-role">@AuthService.CurrentUser?.Role</span>
-                <strong>@AuthService.CurrentUser?.FullName</strong>
+                <span class="session-role">@authState.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</span>
+                <strong>@authState.User.Identity?.Name</strong>
             </div>
             <div class="top-actions">
                 <label class="department-select">
@@ -35,10 +34,9 @@
                 </button>
             </div>
         </div>
-    }
 
-    <div class="page-body">
-        @if (CanSeeSidebar)
+        <div class="page-body">
+            @if (CanSeeSidebar(authState.User))
         {
             <aside class="admin-sidebar @(IsSidebarOpen ? "open" : "closed")">
                 <button type="button" class="sidebar-edge-toggle" @onclick="ToggleSidebar" aria-label="Skift sidebar">
@@ -49,7 +47,7 @@
                     <div class="admin-nav-main">
                         <NavLink class="admin-nav-link" href="/app" Match="NavLinkMatch.All">Overlapssystem</NavLink>
                         <NavLink class="admin-nav-link" href="/app/borger-fordeling">Borgerfordeling</NavLink>
-                        @if (IsAdmin)
+                        @if (authState.User.IsInRole("Admin"))
                         {
                             <NavLink class="admin-nav-link" href="/admin/opret-borger">Opret Borger</NavLink>
                             <NavLink class="admin-nav-link" href="/admin/opret-medarbejder">Opret Medarbejder</NavLink>
@@ -58,7 +56,7 @@
                         }
                     </div>
 
-                    @if (IsAdmin)
+                    @if (authState.User.IsInRole("Admin"))
                     {
                         <div class="admin-nav-bottom">
                             <NavLink class="admin-nav-link" href="/admin/konfiguration">Konfiguration</NavLink>
@@ -73,8 +71,21 @@
                 @Body
             </article>
         </main>
+        </div>
     </div>
-</div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="page page-guest">
+            <div class="page-body">
+                <main>
+                    <article class="content content-guest">
+                        @Body
+                    </article>
+                </main>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
@@ -85,24 +96,8 @@
 @code {
     private bool IsSidebarOpen { get; set; } = true;
 
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
-    private bool IsVagtansvarlig => AuthService.CurrentUser?.Role == "Vagtansvarlig";
-    private bool CanSeeSidebar => IsAdmin || IsVagtansvarlig;
-
-    protected override void OnInitialized()
-    {
-        AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
-    }
-
-    public void Dispose()
-    {
-        AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
-    }
-
-    private void HandleAuthenticationStateChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
+    private static bool CanSeeSidebar(System.Security.Claims.ClaimsPrincipal user) =>
+        user.IsInRole("Admin") || user.IsInRole("Vagtansvarlig");
 
     private void HandleDepartmentChanged(ChangeEventArgs e)
     {

@@ -1,11 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace Slottet.Auth;
 
-public sealed class AuthService
+public sealed class AuthService : AuthenticationStateProvider
 {
+    private static readonly AuthenticationState AnonymousAuthenticationState = new(new ClaimsPrincipal(new ClaimsIdentity()));
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAuthSessionStore _authSessionStore;
     private readonly IReadOnlyList<string> _departments = ["Slottet", "Skoven"];
@@ -88,6 +91,7 @@ public sealed class AuthService
             SelectedShift = GetDefaultShift(loginResponse.Role);
 
             await PersistStateAsync(cancellationToken);
+            NotifyAuthenticationStateChanged(Task.FromResult(CreateAuthenticationState()));
             AuthenticationStateChanged?.Invoke();
             return (true, null);
         }
@@ -159,7 +163,14 @@ public sealed class AuthService
     {
         ClearState();
         await _authSessionStore.ClearAsync(cancellationToken);
+        NotifyAuthenticationStateChanged(Task.FromResult(AnonymousAuthenticationState));
         AuthenticationStateChanged?.Invoke();
+    }
+
+    public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+    {
+        await InitializeAsync();
+        return CreateAuthenticationState();
     }
 
     private static string GetDefaultDepartment(string role)
@@ -194,6 +205,7 @@ public sealed class AuthService
         }
 
         _isInitialized = true;
+        NotifyAuthenticationStateChanged(Task.FromResult(CreateAuthenticationState()));
         AuthenticationStateChanged?.Invoke();
     }
 
@@ -231,6 +243,24 @@ public sealed class AuthService
         AccessToken = null;
         SelectedDepartment = "Slottet";
         SelectedShift = "Dag";
+    }
+
+    private AuthenticationState CreateAuthenticationState()
+    {
+        if (!IsAuthenticated || CurrentUser is null)
+        {
+            return AnonymousAuthenticationState;
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.Name, CurrentUser.FullName),
+            new(ClaimTypes.Email, CurrentUser.Email),
+            new(ClaimTypes.Role, CurrentUser.Role)
+        };
+
+        var identity = new ClaimsIdentity(claims, authenticationType: "SlottetJwt");
+        return new AuthenticationState(new ClaimsPrincipal(identity));
     }
 
     private string ResolveDepartment(string department)

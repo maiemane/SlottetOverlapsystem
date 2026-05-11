@@ -1,66 +1,10 @@
-﻿@implements IDisposable
-@inject NavigationManager NavigationManager
-@inject AuthService AuthService
-
-@if (AuthService.IsInitialized)
-{
-    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-        <Found Context="routeData">
-            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-            <FocusOnNavigate RouteData="routeData" Selector="h1" />
-        </Found>
-    </Router>
-}
-
-@code {
-    protected override void OnInitialized()
-    {
-        AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        await AuthService.InitializeAsync();
-        EnsureAuthorizedRoute();
-    }
-
-    protected override void OnParametersSet()
-    {
-        EnsureAuthorizedRoute();
-    }
-
-    public void Dispose()
-    {
-        AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
-    }
-
-    private static bool IsPublicRoute(string relativePath)
-    {
-        return string.IsNullOrWhiteSpace(relativePath);
-    }
-
-    private void EnsureAuthorizedRoute()
-    {
-        if (!AuthService.IsInitialized)
-        {
-            return;
-        }
-
-        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Trim('/');
-
-        if (!AuthService.IsAuthenticated && !IsPublicRoute(relativePath))
-        {
-            NavigationManager.NavigateTo("/", replace: true);
-        }
-    }
-
-    private void HandleAuthenticationStateChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-}
+﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                <Pages.Home />
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
