@@ -1,15 +1,13 @@
 @page "/admin/opret-borger"
+@attribute [Authorize(Roles = "Admin")]
 @using System.ComponentModel.DataAnnotations
 @using System.Net
 @using System.Net.Http.Json
-@inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
 <PageTitle>Opret Borger</PageTitle>
 
-@if (IsAdmin)
-{
-    <section class="p-4">
+<section class="p-4">
         <h1>Opret Borger</h1>
         <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
             <h2 class="h4 mb-0">Borgere</h2>
@@ -340,8 +338,7 @@
                 </div>
             </div>
         }
-    </section>
-}
+</section>
 
 @code {
     private static readonly IReadOnlyList<DepartmentOption> DepartmentOptions =
@@ -357,7 +354,6 @@
         new(3, "Rød")
     ];
 
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
     private List<CitizenListItem> Citizens { get; set; } = [];
     private CreateCitizenFormModel Model { get; set; } = new();
     private EditCitizenFormModel EditModel { get; set; } = new();
@@ -378,12 +374,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!IsAdmin)
-        {
-            NavigationManager.NavigateTo("/app", replace: true);
-            return;
-        }
-
         Model = CreateDefaultCreateModel();
         await LoadCitizensAsync();
     }

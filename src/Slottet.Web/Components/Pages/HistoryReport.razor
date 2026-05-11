@@ -1,16 +1,14 @@
 ﻿@page "/admin/historik"
+@attribute [Authorize(Roles = "Admin")]
 @using System.Net
 @using System.Net.Http.Json
 @using System.Text
 @using System.Text.Json
-@inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
 <PageTitle>Historik</PageTitle>
 
-@if (IsAdmin)
-{
-    <section class="history-shell">
+<section class="history-shell">
         <header class="history-header">
             <div>
                 <h1>Historik</h1>
@@ -125,8 +123,7 @@
                 </div>
             }
         </section>
-    </section>
-}
+</section>
 
 <style>
     .history-shell {
@@ -233,7 +230,6 @@
 </style>
 
 @code {
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
     private bool CanDownload => !IsLoading && !IsDownloading && Events.Count > 0;
 
     private readonly int[] TakeOptions = [25, 50, 100, 250, 500];
@@ -255,12 +251,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!IsAdmin)
-        {
-            NavigationManager.NavigateTo("/app", replace: true);
-            return;
-        }
-
         await LoadCitizensAsync();
         await LoadHistoryAsync();
     }

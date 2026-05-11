@@ -1,14 +1,12 @@
 @page "/admin/konfiguration"
+@attribute [Authorize(Roles = "Admin")]
 @using System.Net
 @using System.Net.Http.Json
-@inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
 <PageTitle>Konfiguration</PageTitle>
 
-@if (IsAdmin)
-{
-    <section class="config-shell">
+<section class="config-shell">
         <header class="config-header">
             <div>
                 <h1>Konfiguration</h1>
@@ -191,8 +189,7 @@
                 </div>
             }
         </section>
-    </section>
-}
+</section>
 
 <style>
     .config-shell {
@@ -384,8 +381,6 @@
 </style>
 
 @code {
-    private bool IsAdmin => AuthService.CurrentUser?.Role == "Admin";
-
     private List<ShiftConfigRow> ShiftRows { get; set; } = [];
     private List<ShiftConfigRow> InitialShiftRows { get; set; } = [];
     private string? StatusMessage { get; set; }
@@ -410,12 +405,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!IsAdmin)
-        {
-            NavigationManager.NavigateTo("/app", replace: true);
-            return;
-        }
-
         await LoadShiftDefinitionsAsync();
         await LoadDisclaimersAsync();
         await LoadPhonesAsync();

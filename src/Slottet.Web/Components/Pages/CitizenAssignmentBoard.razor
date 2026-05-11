@@ -1,15 +1,13 @@
 @page "/app/borger-fordeling"
+@attribute [Authorize(Roles = "Admin,Vagtansvarlig")]
 @implements IDisposable
 @using System.Net
 @using System.Net.Http.Json
-@inject NavigationManager NavigationManager
 @inject AuthService AuthService
 
 <PageTitle>Borgerfordeling</PageTitle>
 
-@if (CanUsePage)
-{
-    <section class="assignment-shell">
+<section class="assignment-shell">
         <header class="assignment-header">
             <div>
                 <div class="assignment-tags">
@@ -137,8 +135,7 @@
                 }
             </div>
         }
-    </section>
-}
+</section>
 
 <style>
     .assignment-shell {
@@ -394,7 +391,6 @@
 </style>
 
 @code {
-    private bool CanUsePage => AuthService.CurrentUser?.Role is "Admin" or "Vagtansvarlig";
     private List<EmployeeOption> Employees { get; set; } = [];
     private List<CitizenCardModel> Citizens { get; set; } = [];
     private DateTime SelectedDate { get; set; } = DateTime.Today;
@@ -418,12 +414,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!CanUsePage)
-        {
-            NavigationManager.NavigateTo("/app", replace: true);
-            return;
-        }
-
         _lastDepartment = AuthService.SelectedDepartment;
         AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
         await LoadBoardAsync();
@@ -436,12 +426,6 @@
 
     private async void HandleAuthenticationStateChanged()
     {
-        if (!CanUsePage)
-        {
-            await InvokeAsync(() => NavigationManager.NavigateTo("/app", replace: true));
-            return;
-        }
-
         if (string.Equals(_lastDepartment, AuthService.SelectedDepartment, StringComparison.OrdinalIgnoreCase))
         {
             return;
