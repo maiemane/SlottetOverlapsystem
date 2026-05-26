@@ -57,6 +57,10 @@ flowchart TB
 
 ## Forklaring
 
+Deployment-diagrammet viser, hvordan systemet er tænkt placeret i et produktionsmiljø. Brugeren tilgår systemet gennem en browser på tablet eller PC, hvorefter trafikken går gennem en reverse proxy eller load balancer. Herfra sendes brugeren videre til frontend-laget, som består af en eller flere instanser af `Slottet.Web`. Frontenden kalder derefter `Slottet.Api` over HTTP med JWT-baseret autentifikation, og API'et står for den egentlige adgang til domænedata i databasen.
+
+Arkitekturen følger derfor i hovedtræk en klassisk opdeling mellem frontend, API og database, hvor API'et fungerer som systemets centrale adgangslag til data. API'et kan skaleres horisontalt, fordi flere API-instanser kan dele den samme eksterne database uden at være afhængige af lokal servertilstand.
+
 ### Frontend
 
 - Frontenden er `Slottet.Web`
@@ -90,6 +94,10 @@ Relevante filer:
 - den bruges til domænedata
 - den bruges også til delte Data Protection keys
 - Data Protection keys bruges kun som framework-infrastruktur i frontend og ikke til domænedata
+
+Det er værd at bemærke, at frontenden i diagrammet har en stiplet forbindelse til databasen. Normalt bør en frontend ikke kende til eller have direkte forbindelse til databasen, fordi det bryder den rene lagdeling mellem frontend, API og datalag. I vores løsning er forbindelsen dog bevidst afgrænset til ASP.NET Core Data Protection keys og ikke til almindelige domænedata.
+
+Grunden til dette valg er, at `Slottet.Web` kører som Blazor Server. Ved horisontal skalering kan flere frontend-instanser håndtere brugere bag en load balancer, og de instanser skal kunne dele de samme krypteringsnøgler. Ellers kan en instans få problemer med at læse cookies, tokens eller anden beskyttet framework-state, som er oprettet af en anden instans. Den delte key storage i databasen er derfor et praktisk infrastrukturvalg, der understøtter skalering, selvom vi er bevidste om, at forbindelsen fra frontend til database er et arkitektonisk kompromis.
 
 Relevante filer:
 
