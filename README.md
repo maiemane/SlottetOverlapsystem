@@ -41,490 +41,115 @@ Det betyder i denne løsning:
 - serveren er backend-API'et i `src/Slottet.Api`
 - databasen er en central ekstern ressource i Azure SQL
 
-Løsningen er **ikke** peer-to-peer, fordi klienterne ikke kommunikerer direkte med hinanden.
+## Systembeskrivelse
+Slottet Overlapsystem er udviklet til at støtte det daglige arbejde i afdelingerne Slottet og Skoven, hvor flere medarbejdere skal koordinere borgere, medicin, opgaver og ansvar på tværs af vagtskift. Systemet bruges som et fælles arbejdsredskab i løbet af vagten: brugeren vælger afdeling, vagt og dato og får derefter et samlet overblik over aktive borgere. For hver borger vises centrale oplysninger som medicinstatus, næste medicintidspunkt, særlige hændelser og tilknyttede medarbejdere. Derudover giver systemet mulighed for at arbejde med vagtopgaver, ansvarsopgaver og telefonfordeling, så vigtige driftsopgaver er synlige og fordelt. For vagtansvarlige og administratorer understøtter løsningen også borgerfordeling, hvor medarbejdere kan tildeles borgere på tværs af dag-, aften- og nattevagt, så overleveringen mellem hold bliver mere ensartet og gennemskuelig.
 
-Løsningen er **ikke** en egentlig microservice-arkitektur, fordi backend-funktionaliteten stadig er samlet i én API-service og ikke opdelt i flere små, uafhængigt deploybare services med hver deres database.
+Teknisk er løsningen bygget som en distribueret client-server applikation med Blazor som frontend og et separat ASP.NET Core API til forretningslogik og dataadgang. Systemet er struktureret i lag, så ansvar er opdelt mellem domæne, applikationslogik og infrastruktur, hvilket giver en tydelig og vedligeholdbar arkitektur. API’et håndterer systemets funktioner via dedikerede endpoints, mens data persisteres i en ekstern SQL-database. Adgangen er rollebaseret for at sikre, at brugere kun ser og udfører de handlinger, der passer til deres ansvar: en Medarbejder kan arbejde i den daglige overlapvisning og registrere den løbende drift, en Vagtansvarlig kan derudover fordele medarbejdere på borgere og vagter samt styre centrale vagtopgaver, og en Admin har udvidede rettigheder til administrative funktioner som oprettelse af borgere og medarbejdere, konfiguration samt logs/GDPR-håndtering. Opdelingen giver både bedre datasikkerhed og en mere enkel brugeroplevelse, fordi hver rolle møder relevante funktioner uden unødig kompleksitet. Autentifikation er implementeret sikkert med JWT, så kun godkendte brugere kan tilgå systemet, og autorisation håndhæves konsekvent på tværs af funktioner. Samlet fremstår løsningen som en driftsegnet platform til daglig koordinering, dokumentation og sikker adgang til data i en professionel plejekontekst.
 
-## Kørsel lokalt
 
-Løsningen kan køres både uden Docker og med Docker. I begge tilfælde er databasen ekstern.
+## Guide til lærere: lokal opsætning og kørsel
 
-### Uden Docker
+Denne guide viser, hvordan I kører systemet på jeres egne maskiner.
 
-Frontend læser API-baseurl fra `Api:BaseUrl`.
-API og frontend kan læse databaseforbindelse fra `ConnectionStrings:SlottetDb`.
+### Krav
 
-Relevante filer:
+- .NET 10 SDK
+- Adgang til SQL Server/Azure SQL (connection string)
+- (Valgfrit) Docker Desktop, hvis I vil køre med Docker Compose
 
-- `src/Slottet.Api/appsettings.json`
+### 1) Klargør konfigurationsfiler (uden Docker)
+
+Der skal oprettes to lokale filer, som **ikke** ligger i Git:
+
 - `src/Slottet.Api/appsettings.Development.json`
-- `src/Slottet.Web/appsettings.json`
 - `src/Slottet.Web/appsettings.Development.json`
 
-Eksempel på lokal kørsel af API med environment variable:
+#### `src/Slottet.Api/appsettings.Development.json`
 
-```bash
-ConnectionStrings__SlottetDb="<jeres connection string>" dotnet run --project src/Slottet.Api
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "SlottetDb": "Server=tcp:datamatikerdatabase.database.windows.net,1433;Initial Catalog=Slottet;Persist Security Info=False;User ID=DMO13;Password=Chr991511;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+  },
+  "Swagger": {
+    "Enabled": true
+  }
+}
 ```
 
-### Med Docker Compose
+#### `src/Slottet.Web/appsettings.Development.json`
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "SlottetDb": "Server=tcp:datamatikerdatabase.database.windows.net,1433;Initial Catalog=Slottet;Persist Security Info=False;User ID=DMO13;Password=Chr991511;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+  },
+  "Api": {
+    "BaseUrl": "http://localhost:5032/"
+  },
+  "DataProtection": {
+    "ApplicationName": "Slottet"
+  }
+}
+```
+
+### 2) Kør systemet uden Docker
+
+Åbn to terminaler i projektets rodmappe.
+
+Terminal 1 (API):
+
+```bash
+dotnet run --project src/Slottet.Api
+```
+
+Terminal 2 (Web):
+
+```bash
+dotnet run --project src/Slottet.Web
+```
+
+Standardadresser i development:
+
+- Web: `https://localhost:7169` (eller `http://localhost:5150`)
+- API: `https://localhost:7079` (eller `http://localhost:5032`)
+- Swagger: `https://localhost:7079/swagger`
+
+### 3) Kør systemet med Docker Compose (valgfrit)
 
 1. Kopiér `.env.example` til `.env`
-2. Udfyld mindst `SLOTTET_DB_CONNECTION` og `SLOTTET_JWT_SIGNING_KEY`
-3. Start løsningen:
+2. Udfyld mindst:
+   - `SLOTTET_DB_CONNECTION`
+   - `SLOTTET_JWT_SIGNING_KEY`
+3. Start:
 
 ```bash
 docker compose up --build
 ```
 
-Frontend eksponeres på `http://localhost:8080`
-API eksponeres på `http://localhost:8081`
-Swagger findes i development-opsætningen på `http://localhost:8081/swagger`
-
-Health endpoints:
-
-- `http://localhost:8080/health`
-- `http://localhost:8081/health`
-
-Relevante filer:
-
-- `docker-compose.yml`
-- `docker-compose.prod.yml`
-- `src/Slottet.Api/Dockerfile`
-- `src/Slottet.Web/Dockerfile`
-- `.env.example`
-- `.dockerignore`
-
-### Produktionslignende Docker-kørsel
-
-Hvis løsningen skal køres lokalt i en mere produktionslignende konfiguration:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
-```
-
-Dette gør blandt andet:
-
-- sætter `ASPNETCORE_ENVIRONMENT=Production`
-- slår Swagger fra som standard
-- aktiverer reverse proxy-understøttelse via forwarded headers
-
-## CI/CD
-
-GitHub Actions-workflowen ligger i:
-
-- `.github/workflows/ci.yml`
-
-Workflowen kører:
-
-- `dotnet restore Slottet.sln`
-- `dotnet build Slottet.sln --configuration Release --no-restore`
-- `dotnet test Slottet.sln --configuration Release --no-build`
-
-## Test
-
-Tests kan køres med:
-
-```bash
-dotnet test Slottet.sln
-```
-
-Der findes tests i:
-
-- `tests/Slottet.Application.Tests`
-- `tests/Slottet.Domain.Tests`
-
-## Sikkerhed, GDPR og compliance
-
-Løsningen indeholder flere konkrete sikkerheds- og GDPR-tiltag:
-
-- JWT-baseret autentificering og rollebaseret autorisation
-- adgangslogning af API-kald via access logs
-- auditlogning af ændringer i data for sporbarhed
-- dataminimering i logs, så følsomme felter og query strings ikke gemmes i klartekst
-- konfigurerbar retention på audit- og access logs
-- GDPR-flow for borgere med eksport af persondata og anonymisering
-- pseudonymisering af anonymiserede borgere, så de fortsat kan skelnes i systemet uden direkte identifikation
-
-Det betyder, at systemet både understøtter sikker drift, audit og centrale GDPR-principper som dataminimering, begrænset opbevaringsperiode og kontrolleret behandling af personoplysninger.
-
-### Kryptering og beskyttelse af data
-
-Det er vigtigt at skelne mellem forskellige typer beskyttelse:
-
-- data i transit er beskyttet, fordi databaseforbindelsen er sat op med `Encrypt=True`
-- passwords gemmes ikke i klartekst, men som hash
-- øvrige persondata som borgernavn, lejlighedsnummer, medicinbeskrivelser og hændelser er ikke krypteret felt-for-felt i applikationskoden
-
-Det vil sige, at løsningen beskytter forbindelsen mellem applikation og database, men ikke selv krypterer alle persondatafelter i databasen. Hvis databasen kører med kryptering at rest, vil det være en database-/platformfunktion, ikke noget der følger direkte af denne kodebase.
-
-Til et eksamensprojekt vurderes den nuværende løsning som et realistisk og fornuftigt niveau, fordi der er fokus på adgangskontrol, hashing, logbeskyttelse, anonymisering og retention. Hvis systemet skulle videre mod rigtig drift, ville næste relevante sikkerhedsskridt blandt andet være mere finmasket adgangskontrol, stærkere sessionhåndtering og eventuelt kryptering at rest eller feltkryptering af særligt følsomme data.
-
-## Teknologi- og arkitekturkrav
-
-Dette afsnit beskriver, hvordan løsningen opfylder kravene til teknologi, arkitektur, cloud readiness og distribueret drift.
-
-### 1. Framework og sprog
-
-Krav:
-
-- ASP.NET Core
-- Blazor til frontend
-
-Opfyldelse:
-
-- API'et er implementeret i ASP.NET Core i `src/Slottet.Api/Program.cs`
-- frontenden er implementeret som Blazor Web App i `src/Slottet.Web/Program.cs`
-
-### 2. Database og persistence
-
-Krav:
-
-- Microsoft SQL Server eller MySQL
-- Entity Framework
-
-Opfyldelse:
-
-- databasen er Microsoft SQL Server / Azure SQL
-- EF Core bruges via `ApplicationDbContext` i `src/Slottet.Infrastructure/Data/ApplicationDbContext.cs`
-- migrations findes i `src/Slottet.Infrastructure/Data/Migrations`
-- connection strings læses fra konfiguration og environment variables
-
-### 3. API-eksponering
-
-Krav:
-
-- systemets funktioner skal eksponeres som et API
-
-Opfyldelse:
-
-- API'et ligger i `src/Slottet.Api`
-- controllers findes i `src/Slottet.Api/Controllers`
-- login endpoint findes i `src/Slottet.Api/Controllers/AuthController.cs`
-- forretningslogik kaldes via application services, ikke direkte fra controllerne
-
-### 4. Containerisering
-
-Krav:
-
-- Docker i passende omfang
-
-Opfyldelse:
-
-- frontend har egen containerdefinition i `src/Slottet.Web/Dockerfile`
-- API har egen containerdefinition i `src/Slottet.Api/Dockerfile`
-- lokal development-opsætning findes i `docker-compose.yml`
-- produktionsoverride findes i `docker-compose.prod.yml`
-
-Det er et bevidst designvalg, at databasen **ikke** containeriseres lokalt i løsningen, fordi projektet anvender en ekstern Azure SQL-database. Det understøtter bedre den faktiske driftssituation.
-
-## Cloud-ready og distribueret system
-
-Dette afsnit beskriver de konkrete valg, der gør løsningen cloud-ready, og hvor der stadig findes arkitektoniske forbehold.
-
-### 1. Kørsel som standalone installation på én PC
-
-Opfyldelse:
-
-- frontend og API kan køres lokalt på samme maskine
-- de kan også køres samlet via Docker Compose
-
-Relevant kode og opsætning:
-
-- `src/Slottet.Web/Program.cs`
-- `src/Slottet.Api/Program.cs`
-- `docker-compose.yml`
-
-### 2. Kørsel som client/server-løsning i lokalt netværk
-
-Opfyldelse:
-
-- løsningen er bygget som client-server
-- flere klienter kan tilgå samme backend og database over netværk
-
-Relevant kode og opsætning:
-
-- `src/Slottet.Web`
-- `src/Slottet.Api`
-- `src/Slottet.Web/Auth/AuthService.cs`
-
-### 3. Kørsel som cloud-baseret løsning
-
-Opfyldelse:
-
-- frontend og API er containeriserede som separate services
-- databasen er ekstern i Azure SQL
-- central runtime-konfiguration sker via environment variables
-- health checks og proxy-awareness er tilføjet til cloud-drift
-
-Relevant kode og opsætning:
-
-- `docker-compose.yml`
-- `docker-compose.prod.yml`
-- `src/Slottet.Web/Program.cs`
-- `src/Slottet.Api/Program.cs`
-- `.env.example`
-
-### 4. Central konfiguration via miljøvariabler og secrets
-
-Opfyldelse:
-
-- connection strings kan sættes via `ConnectionStrings__SlottetDb`
-- JWT-indstillinger kan sættes via `Jwt__...`
-- CORS, Swagger, reverse proxy og Data Protection styres via config
-- `.env` er ignoreret i Git
-
-Relevant kode og opsætning:
-
-- `docker-compose.yml`
-- `docker-compose.prod.yml`
-- `.env.example`
-- `.gitignore`
-- `src/Slottet.Api/Program.cs`
-- `src/Slottet.Web/Program.cs`
-
-### 5. Ingen binding til lokalt filsystem til delt data
-
-Opfyldelse:
-
-- domænedata ligger i ekstern SQL-database
-- Data Protection keys deles via databasen i stedet for lokalt filsystem
-- både frontend og API migrerer databasen ved opstart, så nødvendige tabeller findes uanset hvilken service der starter først
-
-Relevant kode:
-
-- `src/Slottet.Web/Program.cs`
-- `src/Slottet.Infrastructure/Data/ApplicationDbContext.cs`
-- `src/Slottet.Infrastructure/Data/ApplicationDbSeeder.cs`
-- `src/Slottet.Infrastructure/Data/Migrations/20260413120000_AddDataProtectionKeys.cs`
-
-Hvorfor det er vigtigt:
-
-- hvis hver frontend-instans havde sine egne lokale keys, ville beskyttede payloads og antiforgery kunne fejle ved scale-out
-- en fælles key store er vigtig i et distribueret setup
-
-### Hvorfor `Slottet.Web` har databaseadgang
-
-Det er et bevidst arkitekturvalg, at `Slottet.Web` har en begrænset databaseadgang, men **kun** til framework-infrastruktur og ikke til systemets forretningsdata.
-
-Det betyder:
-
-- frontend læser og skriver **ikke** domænedata som borgere, medarbejdere, overlap eller medicin direkte i databasen
-- den type data går stadig gennem API'et i `src/Slottet.Api`
-- frontendens databaseadgang bruges kun til **Data Protection key storage**
-
-Det ses konkret i:
-
-- `src/Slottet.Web/Program.cs`
-  Her registreres `ApplicationDbContext`, og Data Protection konfigureres med `.PersistKeysToDbContext<ApplicationDbContext>()`
-- `src/Slottet.Infrastructure/Data/ApplicationDbContext.cs`
-  Her findes `DbSet<DataProtectionKey> DataProtectionKeys`
-- `src/Slottet.Infrastructure/Data/Migrations/20260413120000_AddDataProtectionKeys.cs`
-  Her oprettes tabellen `DataProtectionKey`
-
-Formålet er at understøtte distribueret drift for Blazor Server:
-
-- Blazor Server bruger beskyttede payloads og antiforgery-mekanismer
-- hvis flere frontend-instanser kører bag load balancing, må de ikke være afhængige af hver deres lokale key storage
-- derfor deles Data Protection keys centralt i databasen
-
-Arkitektonisk vurdering:
-
-- hvis man ser på forretningslogik og domænedata, er løsningen stadig korrekt opdelt med frontend -> API -> database
-- hvis man ser på runtime-infrastruktur, har frontend direkte databaseadgang til en teknisk hjælpefunktion
-
-Det er derfor vigtigt at kunne forklare til eksamen, at databaseadgangen i `Web` **ikke** bruges til at omgå API'et, men kun til at understøtte sikker og stabil drift af Blazor Server i et distribueret setup.
-
-### Spørgsmål til underviser
-
-Følgende spørgsmål kan bruges direkte til at få en afklaring:
-
-“Vi har beholdt al adgang til domænedata bag vores eksterne API i `src/Slottet.Api`, men i `src/Slottet.Web/Program.cs` bruger vi også databasen til ASP.NET Core Data Protection keys via `.PersistKeysToDbContext<ApplicationDbContext>()`. Det gør vi for at understøtte Blazor Server i et distribueret setup, så flere frontend-instanser kan dele de samme keys, jf. `src/Slottet.Infrastructure/Data/ApplicationDbContext.cs` og migrationen `src/Slottet.Infrastructure/Data/Migrations/20260413120000_AddDataProtectionKeys.cs`. Vil I vurdere, at dette stadig er inden for kravet om separat frontend og ekstern API, når databaseadgangen i frontend kun bruges til framework-infrastruktur og ikke til forretningsdata?” 
-
-### 6. Ingen binding til fast IP eller maskinspecifik konfiguration
-
-Opfyldelse:
-
-- løsningen bruger konfigurationsnøgler og environment variables
-- compose-opsætningen er ikke bundet til specifik maskine eller fast IP
-
-Relevant opsætning:
-
-- `docker-compose.yml`
-- `.env.example`
-- `src/Slottet.Api/appsettings.json`
-- `src/Slottet.Web/appsettings.json`
-
-### 7. Ingen binding til en enkelt fast server
-
-Opfyldelse:
-
-- arkitekturen er opdelt i frontend, API og ekstern database
-- services kan i princippet flyttes mellem miljøer og containere
-
-Forbehold:
-
-- frontenden er bygget med Blazor Server og holder interaktive circuits på serversiden
-- det betyder, at deployment i flere instanser kræver korrekt load balancing-strategi
-
-Relevant kode:
-
-- `src/Slottet.Web/Program.cs`
-- `src/Slottet.Web/Components/Layout/ReconnectModal.razor`
-- `src/Slottet.Web/Components/Layout/ReconnectModal.razor.js`
-
-### 8. Horisontal skalering
-
-Status:
-
-- API: i høj grad opfyldt
-- frontend: delvist opfyldt og kræver korrekt driftsopsætning
-
-API:
-
-- API'et er tæt på stateless
-- auth sker via JWT
-- data ligger i ekstern database
-- API'et har health endpoint og kan derfor lettere skaleres og overvåges
-
-Relevant kode:
-
-- `src/Slottet.Api/Program.cs`
-- `src/Slottet.Infrastructure/Auth/JwtTokenGenerator.cs`
-- `src/Slottet.Api/Controllers`
-
-Frontend:
-
-- frontenden bruger Blazor Server via `AddInteractiveServerComponents()` i `src/Slottet.Web/Program.cs`
-- derfor findes server-side circuit state
-- Data Protection er nu delt centralt, hvilket er en vigtig forudsætning for multi-instance drift
-- men en aktiv brugerforbindelse bør fortsætte mod samme instans
-
-Relevant kode:
-
-- `src/Slottet.Web/Program.cs`
-- `src/Slottet.Web/Auth/BrowserSessionAuthStore.cs`
-- `src/Slottet.Web/wwwroot/auth-storage.js`
-
-Forsvar til eksamen:
-
-- API'en kan beskrives som egnet til horisontal skalering
-- frontenden kan indgå i et distribueret setup, men kræver sticky sessions eller tilsvarende ved load balancing
-
-### 9. Load balancing og høj tilgængelighed
-
-Status:
-
-- teknisk forberedt
-- ikke fuldt demonstreret i et rigtigt cloudmiljø i projektet
-
-Det der er implementeret:
-
-- health endpoints i både frontend og API
-- Docker health checks i `docker-compose.yml`
-- reverse proxy-understøttelse via forwarded headers i både frontend og API
-- central Data Protection key store i databasen
-
-Relevant kode og opsætning:
-
-- `src/Slottet.Api/Program.cs`
-- `src/Slottet.Web/Program.cs`
-- `docker-compose.yml`
-- `docker-compose.prod.yml`
-
-Det der stadig afhænger af driftsmiljø:
-
-- konkret load balancer eller ingress
-- session affinity for Blazor Server-frontend
-- egentlig høj tilgængelighed på platformniveau
-
-Det er vigtigt i forsvaret at forklare forskellen mellem:
-
-- “løsningen er teknisk forberedt til load balancing”
-- og “vi har implementeret en konkret cloud load balancer i projektet”
-
-## Sikkerheds- og driftsrelevante elementer
-
-### JWT og login
-
-- JWT-konfiguration i `src/Slottet.Api/Program.cs`
-- token-generering i `src/Slottet.Infrastructure/Auth/JwtTokenGenerator.cs`
-- login-service i `src/Slottet.Application/Services/Auth/LoginService.cs`
-- login-controller i `src/Slottet.Api/Controllers/AuthController.cs`
-
-### Rollebaseret adgangskontrol
-
-Eksempler:
-
-- `src/Slottet.Api/Controllers/AdminLogsController.cs`
-- `src/Slottet.Api/Controllers/EmployeesController.cs`
-- `src/Slottet.Api/Controllers/CitizensController.cs`
-
-Her bruges `[Authorize]` og `[Authorize(Roles = ...)]` til at beskytte endpoints.
-
-### Audit og adgangslogning
-
-- adgangslogning via middleware i `src/Slottet.Infrastructure/Logging/AccessLogMiddleware.cs`
-- auditdata gemmes via `src/Slottet.Infrastructure/Data/ApplicationDbContext.cs`
-- audit endpoints findes i `src/Slottet.Api/Controllers/AdminLogsController.cs`
-
-### Health checks
-
-- API health endpoint mappes i `src/Slottet.Api/Program.cs`
-- frontend health endpoint mappes i `src/Slottet.Web/Program.cs`
-- Docker health checks findes i `docker-compose.yml`
-
-## Hvad der er fuldt opfyldt og hvad der kræver forsvar
-
-### Fuldt eller meget tæt på fuldt opfyldt
-
-- ASP.NET Core og Blazor
-- SQL Server og Entity Framework
-- ekstern API
-- Docker-containerisering
-- standalone kørsel
-- client-server i lokalt netværk
-- cloud-ready retning
-- central konfiguration via environment variables og secrets
-- ingen binding til delt lokalt filsystem
-- ingen fast IP eller maskinspecifik konfiguration
-
-### Delvist opfyldt eller afhængigt af driftsmiljø
-
-- horisontal skalering af frontend
-- load balancing
-- høj tilgængelighed
-
-Det skyldes ikke, at løsningen er forkert, men at Blazor Server har nogle driftsmæssige konsekvenser, som kræver korrekt hostingopsætning.
-
-## Teori til forsvar
-
-Følgende formuleringer kan bruges direkte eller næsten direkte i eksamensforsvaret.
-
-### Om systemtypen
-
-“Løsningen er et distribueret client-server system. Frontenden er klientlaget, API'et er serverlaget, og databasen er en central ekstern ressource. Det er derfor ikke peer-to-peer, og det er heller ikke en egentlig microservice-arkitektur.”
-
-### Om cloud readiness
-
-“Løsningen er designet i en cloud-ready retning, fordi frontend og API er separate deploybare services, databasen er ekstern, og konfiguration sker via environment variables og secrets frem for maskinspecifik opsætning.”
-
-### Om horisontal skalering
-
-“API'et er det mest oplagte lag at skalere horisontalt, fordi det er tæt på stateless. Frontenden er bygget med Blazor Server og holder circuits på serversiden, så scale-out kræver ekstra hensyn som session affinity.”
-
-### Om load balancing
-
-“Vi har forberedt løsningen til load balancing gennem health checks, reverse proxy-understøttelse og delt Data Protection key storage. En egentlig produktionsopsætning kræver derudover en konkret load balancer eller ingress-konfiguration.”
-
-### Om Data Protection
-
-“For at undgå binding til lokalt filsystem i et multi-instance setup deler frontend-instanserne Data Protection keys via databasen. Det er vigtigt for beskyttede payloads og antiforgery i Blazor Server.”
-
-### Om valg af Blazor Server frem for WebAssembly
-
-“Vi valgte Blazor Server, fordi det passede godt til vores .NET-stack og gjorde det muligt at komme hurtigt langt med én samlet C#-baseret frontend. Det var en praktisk fordel i et eksamensprojekt. Vi er samtidig bevidste om, at Blazor Server giver ekstra hensyn ved load balancing og horisontal skalering, fordi der findes server-side circuits. Hvis målet primært havde været maksimal arkitektonisk renhed i et distribueret frontend/backend setup, ville Blazor WebAssembly have været et stærkere valg. Vores valg af Blazor Server er derfor et bevidst tradeoff mellem udviklingshastighed og driftsmæssig kompleksitet.”
-
-## Resume
-
-Løsningen opfylder langt størstedelen af kravene under teknologi og arkitektur. Det vigtigste, der kræver præcis mundtlig forklaring, er ikke om løsningen er distribueret, men hvordan frontendens Blazor Server-model påvirker load balancing og horisontal skalering. Det er derfor vigtigt at forklare, at API'en er lettest at skalere, mens frontend kræver sticky sessions eller tilsvarende ved flere instanser.
+Adresser:
+
+- Web: `http://localhost:8080`
+- API: `http://localhost:8081`
+- Swagger: `http://localhost:8081/swagger`
+
+## Fejlsøgning
+
+- Fejl om `Connection string 'SlottetDb' was not found`:
+  Tjek at `ConnectionStrings:SlottetDb` er sat i begge `appsettings.Development.json`.
+- Fejl om JWT-konfiguration:
+  Tjek at `Jwt`-sektionen er udfyldt i API-konfigurationen.
+- CORS-fejl i browser:
+  Tjek at `Cors:AllowedOrigins` i API matcher web-adressen (`https://localhost:7169`).
