@@ -3,7 +3,9 @@
 @implements IDisposable
 @using System.Net
 @using System.Net.Http.Json
+@using Slottet.Realtime
 @inject AuthService AuthService
+@inject OverviewUpdateNotifier OverviewUpdateNotifier
 
 <PageTitle>Borgerfordeling</PageTitle>
 
@@ -398,6 +400,7 @@
     private string? LoadErrorMessage { get; set; }
     private bool IsLoading { get; set; }
     private string? _lastDepartment;
+    private Guid RealtimeSourceId { get; } = Guid.NewGuid();
 
     private List<CitizenCardModel> FilteredCitizens =>
         Citizens
@@ -549,6 +552,7 @@
             }
 
             citizen.SuccessMessage = "Borgerens vagttilknytninger blev opdateret.";
+            await NotifyOverviewChangedAsync();
         }
         catch (HttpRequestException)
         {
@@ -662,6 +666,18 @@
     private string GetEmployeeName(int employeeId)
     {
         return Employees.FirstOrDefault(employee => employee.EmployeeId == employeeId)?.Name ?? $"Medarbejder {employeeId}";
+    }
+
+    private Task NotifyOverviewChangedAsync()
+    {
+        var departmentId = ResolveDepartmentId(AuthService.SelectedDepartment);
+
+        return OverviewUpdateNotifier.NotifyOverviewChangedAsync(new OverviewChangedMessage(
+            RealtimeSourceId,
+            departmentId > 0 ? departmentId : null,
+            null,
+            SelectedDate,
+            "CitizenAssignmentsChanged"));
     }
 
     private static int GetApartmentSortNumber(string apartmentNumber)

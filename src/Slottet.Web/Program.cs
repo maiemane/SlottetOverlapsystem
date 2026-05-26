@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Slottet.Infrastructure.Data;
+using Slottet.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +23,7 @@ builder.Services.AddScoped<IAuthSessionStore, BrowserSessionAuthStore>();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHealthChecks();
+builder.Services.AddSingleton<OverviewUpdateNotifier>();
 var connectionString = builder.Configuration.GetConnectionString("SlottetDb")
                       ?? throw new InvalidOperationException("Connection string 'SlottetDb' was not found.");
 var dataProtectionApplicationName = builder.Configuration["DataProtection:ApplicationName"] ?? "Slottet";
@@ -69,6 +71,7 @@ app.UseAntiforgery();
 app.MapHealthChecks("/health", new HealthCheckOptions());
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AllowAnonymous();
 
 app.Run();

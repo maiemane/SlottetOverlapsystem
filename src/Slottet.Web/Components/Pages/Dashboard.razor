@@ -3,7 +3,9 @@
 @implements IDisposable
 @using System.Net
 @using System.Net.Http.Json
+@using Slottet.Realtime
 @inject AuthService AuthService
+@inject OverviewUpdateNotifier OverviewUpdateNotifier
 
 <PageTitle>Overlapssystem</PageTitle>
 
@@ -1273,6 +1275,7 @@
     private bool IsLoadingPhoneAllocationCreateData { get; set; }
     private HashSet<int> UpdatingShiftTaskIds { get; } = [];
     private Dictionary<string, string> DepartmentMessages { get; } = new(StringComparer.OrdinalIgnoreCase);
+    private Guid RealtimeSourceId { get; } = Guid.NewGuid();
     private bool IsSaving { get; set; }
     private int NewShiftTaskShiftType { get; set; } = 1;
     private bool NewShiftTaskForAllShifts { get; set; }
@@ -1291,6 +1294,7 @@
     protected override void OnInitialized()
     {
         AuthService.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+        OverviewUpdateNotifier.OverviewChanged += HandleOverviewChangedAsync;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1306,12 +1310,31 @@
     public void Dispose()
     {
         AuthService.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+        OverviewUpdateNotifier.OverviewChanged -= HandleOverviewChangedAsync;
     }
 
     private async void HandleAuthenticationStateChanged()
     {
         await LoadOverviewAsync();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private Task HandleOverviewChangedAsync(OverviewChangedMessage message)
+    {
+        if (message.SourceId == RealtimeSourceId)
+        {
+            return Task.CompletedTask;
+        }
+
+        return InvokeAsync(async () =>
+        {
+            if (!AuthService.IsAuthenticated || IsSaving)
+            {
+                return;
+            }
+
+            await LoadOverviewAsync();
+        });
     }
 
     private async Task LoadOverviewAsync()
@@ -1750,6 +1773,7 @@
             SaveSuccessMessage = "Ændringerne er opdateret.";
             await LoadOverviewAsync();
             SelectedCitizen = null;
+            await NotifyOverviewChangedAsync("CitizenOverviewChanged");
         }
         catch (TaskCanceledException)
         {
@@ -2088,6 +2112,7 @@
             ShiftEmployees = [];
             NewResponsibilityTypeId = 0;
             NewResponsibilityEmployeeId = 0;
+            await NotifyOverviewChangedAsync("ResponsibilityAssignmentChanged");
         }
         catch (TaskCanceledException)
         {
@@ -2241,6 +2266,7 @@
             ShiftEmployeesForPhoneAllocation = [];
             NewPhoneAllocationPhoneId = 0;
             NewPhoneAllocationEmployeeId = 0;
+            await NotifyOverviewChangedAsync("PhoneAllocationChanged");
         }
         catch (TaskCanceledException)
         {
@@ -2366,6 +2392,7 @@
             NewShiftTaskDescription = string.Empty;
             NewShiftTaskShiftType = ResolveShiftType(AuthService.SelectedShift);
             NewShiftTaskForAllShifts = false;
+            await NotifyOverviewChangedAsync("ShiftTaskChanged");
         }
         catch (TaskCanceledException)
         {
@@ -2421,6 +2448,7 @@
             }
 
             await LoadShiftTasksAsync(client, CurrentShiftId.Value);
+            await NotifyOverviewChangedAsync("ShiftTaskChanged");
         }
         catch (TaskCanceledException)
         {
@@ -2489,6 +2517,20 @@
                 };
             })
             .ToList();
+    }
+
+    private Task NotifyOverviewChangedAsync(string changeType)
+    {
+        var departmentId = DepartmentIds.TryGetValue(AuthService.SelectedDepartment, out var resolvedDepartmentId)
+            ? resolvedDepartmentId
+            : (int?)null;
+
+        return OverviewUpdateNotifier.NotifyOverviewChangedAsync(new OverviewChangedMessage(
+            RealtimeSourceId,
+            departmentId,
+            CurrentShiftId,
+            SelectedDate,
+            changeType));
     }
 
     private static string FormatMedicationLine(MedicationItemModel medication)
