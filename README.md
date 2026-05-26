@@ -145,11 +145,48 @@ Adresser:
 - API: `http://localhost:8081`
 - Swagger: `http://localhost:8081/swagger`
 
-## Fejlsøgning
+## Containerisering og cloud-ready opsætning
 
-- Fejl om `Connection string 'SlottetDb' was not found`:
-  Tjek at `ConnectionStrings:SlottetDb` er sat i begge `appsettings.Development.json`.
-- Fejl om JWT-konfiguration:
-  Tjek at `Jwt`-sektionen er udfyldt i API-konfigurationen.
-- CORS-fejl i browser:
-  Tjek at `Cors:AllowedOrigins` i API matcher web-adressen (`https://localhost:7169`).
+Løsningen er containeriseret i rimelig omfang. Frontend og API har hver sin Dockerfile:
+
+- `src/Slottet.Web/Dockerfile`
+- `src/Slottet.Api/Dockerfile`
+
+Til lokal kørsel bruges:
+
+```bash
+docker compose up --build
+```
+
+Til en mere produktionslignende opsætning kan produktionsoverride bruges:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+```
+
+Databasen er ikke containeriseret, fordi løsningen er designet til en ekstern SQL Server/Azure SQL-database.
+
+Løsningen kan køres på én maskine, som client/server-løsning på et lokalt netværk eller i en cloud-lignende opsætning. Det understøttes ved, at frontend og API er separate services, konfiguration kan gives via environment variables, og både frontend og API har health checks. Reverse proxy, Swagger, CORS, JWT og databaseforbindelse styres gennem konfiguration, blandt andet i `.env.example`, `docker-compose.yml` og `docker-compose.prod.yml`.
+
+Da frontenden kører som Blazor Server, deles ASP.NET Core Data Protection keys via databasen.
+
+## Test og CI
+
+Tests kan køres med:
+
+```bash
+dotnet test Slottet.sln
+```
+
+Der findes tests i:
+
+- `tests/Slottet.Application.Tests`
+- `tests/Slottet.Domain.Tests`
+
+CI ligger i `.github/workflows/ci.yml` og kører restore, build og test:
+
+```bash
+dotnet restore Slottet.sln
+dotnet build Slottet.sln --configuration Release --no-restore
+dotnet test Slottet.sln --configuration Release --no-build --verbosity normal
+```
